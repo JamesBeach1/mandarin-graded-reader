@@ -1,0 +1,18 @@
+{
+  "dependencies": {
+    "@google/generative-ai": "^0.17.2",
+    "express": "^4.20.0",
+    "fs": "^0.0.1-security",
+    "papaparse": "^5.4.1"
+  },
+  "name": "mandarin-graded-reader",
+  "version": "1.0.0",
+  "description": "",
+  "main": "public/script.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

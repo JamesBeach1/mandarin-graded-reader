@@ -13,7 +13,15 @@
     <div class="page-container">
         <div class="button-container">
             <input type="file" id="csvFileInput" />
-            <input type="text" id="hanziInput" placeholder="Enter Hanzi text here" />
+            <input type="text" id="ideaInput" placeholder="Have a story idea?" />
+            <select id="hskLevelSelect">
+                <option value="HSK Level 1">HSK Level 1</option>
+                <option value="HSK Level 2">HSK Level 2</option>
+                <option value="HSK Level 3">HSK Level 3</option>
+                <option value="HSK Level 4">HSK Level 4</option>
+                <option value="HSK Level 5">HSK Level 5</option>
+                <option value="HSK Level 6">HSK Level 6</option>
+            </select>
             <button id="generateButton">Generate</button>
             <div class="controls">
                 <input type="checkbox" id="showPinyin" name="showPinyin">
@@ -26,7 +34,7 @@
     </div>
     <div id="tooltip" class="tooltip"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 
 </html>

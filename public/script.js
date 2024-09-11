@@ -1,11 +1,16 @@
+import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
+
 document.addEventListener('DOMContentLoaded', () => {
     const hanziContainer = document.getElementById('hanziContainer');
     const tooltip = document.getElementById('tooltip');
     const fileInput = document.getElementById('csvFileInput');
-    const hanziInput = document.getElementById('hanziInput');
+    const ideaInput = document.getElementById('ideaInput');
+    const hskLevelSelect = document.getElementById('hskLevelSelect');
     const generateButton = document.getElementById('generateButton');
+    const genAI = new GoogleGenerativeAI("YOUR_GEMINI_KEY");
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    let hanziData = []; 
+    let hanziData = [];
 
     function addTooltipListeners() {
         const hanziElements = document.querySelectorAll('.hanzi');
@@ -45,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
             Papa.parse(file, {
                 header: true,
                 complete: function (results) {
-                    hanziData = results.data; 
+                    hanziData = results.data;
                     console.log('Parsed CSV data:', hanziData);
                 },
                 error: function (error) {
@@ -55,38 +60,46 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    generateButton.addEventListener('click', () => {
-        const text = hanziInput.value;
-        const hanziArray = [];
+    generateButton.addEventListener('click', async () => {
+        try {
+            const idea = ideaInput.value ? ideaInput.value : "A random graded reader themed story";
+            const hskLevel = hskLevelSelect.value;
+            console.log(hskLevel);
+            console.log(idea);
+            const prompt = `Write me a ${hskLevel} story using only simplified mandarin based on the idea: ${idea}. Do not provide anything pinyin or english.`;
+            const request = await model.generateContent(prompt);
+            const text = request.response.text();
+            const hanziArray = [];
 
-        console.log(hanziData);
-        text.split('').forEach(char => {
-            if (isChinese(char)) {
-                const entry = hanziData.find(item => item.character === char);
-                if (entry) {
-                    hanziArray.push(entry);
+            text.split('').forEach(char => {
+                if (isChinese(char)) {
+                    const entry = hanziData.find(item => item.character === char);
+                    if (entry) {
+                        hanziArray.push(entry);
+                    } else {
+                        hanziArray.push({
+                            character: char,
+                            pinyin: 'Unknown',
+                            definition: 'Definition not found',
+                            hsk_level: 'N/A'
+                        });
+                    }
                 } else {
                     hanziArray.push({
                         character: char,
-                        pinyin: 'Unknown',
-                        definition: 'Definition not found',
-                        hsk_level: 'N/A'
+                        pinyin: '',
+                        definition: '',
+                        hsk_level: '',
+                        isNonChinese: true
                     });
                 }
-            } else {
-                hanziArray.push({
-                    character: char,
-                    pinyin: '',
-                    definition: '',
-                    hsk_level: '',
-                    isNonChinese: true
-                });
-            }
-        });
+            });
 
-        console.log(hanziArray);
 
-        generateHanziText(hanziArray); 
+            generateHanziText(hanziArray);
+        } catch (e) {
+            console.error('An error occurred: ', e);
+        }
     });
 
     function createHanziSpan(hanzi, pinyin, definition, hskLevel, isNonChinese = false) {
@@ -137,7 +150,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         addTooltipListeners(); 
-        togglePinyinVisibility();
     }
 
     function isChinese(char) {
