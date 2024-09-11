@@ -7,10 +7,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const ideaInput = document.getElementById('ideaInput');
     const hskLevelSelect = document.getElementById('hskLevelSelect');
     const generateButton = document.getElementById('generateButton');
-    const genAI = new GoogleGenerativeAI("YOUR_GEMINI_KEY");
+    const genAI = new GoogleGenerativeAI("YOUR_KEY");
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const showPinyin = document.getElementById('showPinyin');
 
     let hanziData = [];
+
+    const handlePinyinCheckbox = () => {
+        const pinyinVisible = showPinyin.checked;
+        const pinyinElements = document.querySelectorAll('.pinyin-text');
+        pinyinElements.forEach(pinyinElement => {
+            pinyinElement.style.display = pinyinVisible ? 'block' : 'none';
+        });
+    }
 
     function addTooltipListeners() {
         const hanziElements = document.querySelectorAll('.hanzi');
@@ -64,8 +73,6 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const idea = ideaInput.value ? ideaInput.value : "A random graded reader themed story";
             const hskLevel = hskLevelSelect.value;
-            console.log(hskLevel);
-            console.log(idea);
             const prompt = `Write me a ${hskLevel} story using only simplified mandarin based on the idea: ${idea}. Do not provide anything pinyin or english.`;
             const request = await model.generateContent(prompt);
             const text = request.response.text();
@@ -114,6 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const pinyinElement = document.createElement('span');
             pinyinElement.classList.add('pinyin-text');
             pinyinElement.textContent = pinyin;
+            pinyinElement.style.display = showPinyin.checked ? 'block' : 'none';
             span.appendChild(pinyinElement);
         }
 
@@ -121,11 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.getElementById('showPinyin').addEventListener('change', () => {
-        const showPinyin = document.getElementById('showPinyin').checked;
-        const pinyinElements = document.querySelectorAll('.pinyin-text');
-        pinyinElements.forEach(pinyinElement => {
-            pinyinElement.style.display = showPinyin ? 'block' : 'none';
-        });
+        handlePinyinCheckbox();
     });
 
     function generateHanziText(hanziArray) {
