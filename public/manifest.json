@@ -1,0 +1,17 @@
+{
+  "name": "Mandarin Graded Reader",
+  "short_name": "MandarinReader",
+  "description": "Graded reader with AI story generation, word segmenter, writing practice, and Spaced Repetition reviews.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f7fa",
+  "theme_color": "#667eea",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

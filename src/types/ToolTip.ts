@@ -5,4 +5,7 @@ export interface TooltipContent {
   frequency?: string;
   radical?: string;
   strokes?: string;
+  isChengyu?: boolean;
+  chengyuLiteral?: string;
+  chengyuAllusion?: string;
 }

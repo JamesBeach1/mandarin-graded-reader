@@ -9,4 +9,7 @@ export interface HanziItem {
   hsk_level: string;
   general_standard_num: string;
   isNonChinese?: boolean;
+  isChengyu?: boolean;
+  chengyuLiteral?: string;
+  chengyuAllusion?: string;
 }
