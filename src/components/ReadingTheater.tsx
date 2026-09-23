@@ -57,7 +57,9 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
 }) => {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [showPinyin, setShowPinyin] = useState(true);
-  const [hidePinyinLevel, setHidePinyinLevel] = useState<number>(0);
+  const [hidePinyinLevel, setHidePinyinLevel] = useState<number>(() => 
+    Number(StorageService.getItem(STORAGE_KEYS.HIDE_PINYIN_LEVEL, '1')) || 1
+  );
   const [ttsSpeed, setTtsSpeed] = useState<number>(1.0);
   const [playbackStatus, setPlaybackStatus] = useState<'idle' | 'playing' | 'paused'>('idle');
 
@@ -841,7 +843,7 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
                     onChange={(e) => {
                       const mode = e.target.value as any;
                       setPinyinDisplayMode(mode);
-                      localStorage.setItem('moyun_pinyin_display_mode', mode);
+                      StorageService.setItem(STORAGE_KEYS.PINYIN_DISPLAY_MODE, mode);
                     }}
                     style={{
                       background: 'transparent',
@@ -858,6 +860,34 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
                     <option value="all">All Words</option>
                     <option value="adaptive">Smart (Fade Learned)</option>
                     <option value="level">By HSK Level</option>
+                  </select>
+                )}
+
+                {showPinyin && pinyinDisplayMode === 'level' && (
+                  <select
+                    value={hidePinyinLevel}
+                    onChange={(e) => {
+                      const lvl = parseInt(e.target.value, 10);
+                      setHidePinyinLevel(lvl);
+                      StorageService.setItem(STORAGE_KEYS.HIDE_PINYIN_LEVEL, String(lvl));
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      borderLeft: '1px solid var(--border-subtle)',
+                      color: 'var(--text-secondary)',
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      outline: 'none',
+                      cursor: 'pointer'
+                    }}
+                    title="Select the threshold HSK level: Pinyin is hidden for words at or below this level, and shown for harder words above it"
+                  >
+                    <option value={1}>Hide ≤ HSK 1 (Show 2+)</option>
+                    <option value={2}>Hide ≤ HSK 2 (Show 3+)</option>
+                    <option value={3}>Hide ≤ HSK 3 (Show 4+)</option>
+                    <option value={4}>Hide ≤ HSK 4 (Show 5+)</option>
+                    <option value={5}>Hide ≤ HSK 5 (Show 6+)</option>
                   </select>
                 )}
 

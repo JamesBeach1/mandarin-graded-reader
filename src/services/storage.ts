@@ -22,6 +22,7 @@ export const STORAGE_KEYS = {
   SCRIPT_PREFERENCE: 'moyun_script_preference',
   PHONETIC_NOTATION: 'moyun_phonetic_notation',
   PINYIN_DISPLAY_MODE: 'moyun_pinyin_display_mode',
+  HIDE_PINYIN_LEVEL: 'hide_pinyin_level',
   TONE_COLOR_MODE: 'moyun_tone_color_mode',
 
   // Analytics & History
