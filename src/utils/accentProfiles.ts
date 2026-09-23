@@ -21,8 +21,8 @@ export const REGIONAL_ACCENT_PROFILES: Record<RegionalAccent, RegionalAccentProf
   standard: {
     id: 'standard',
     name: 'Standard Northern Mandarin',
-    chineseName: '标准普通话 (Standard)',
-    badge: '🏛️ 标准普通话',
+    chineseName: 'Standard Mandarin (普通话)',
+    badge: '🏛️ Standard (普通话)',
     description: 'CCTV broadcast standard Mandarin with clear, crisp phonemic contrasts and canonical retroflex consonants.',
     azureVoice: 'zh-CN-XiaoxiaoNeural',
     systemLang: 'zh-CN',
@@ -36,8 +36,8 @@ export const REGIONAL_ACCENT_PROFILES: Record<RegionalAccent, RegionalAccentProf
   beijing_erhua: {
     id: 'beijing_erhua',
     name: 'Beijing Dialect (Erhua / 京腔)',
-    chineseName: '北京腔 (儿化音)',
-    badge: '🏮 北京儿化音',
+    chineseName: 'Beijing Dialect (北京儿化音)',
+    badge: '🏮 Beijing Erhua (北京儿化)',
     description: 'Lively colloquial Beijing rhythm with characteristic r-colored vowel endings (儿化), softening of stops, and fast sentence flow.',
     azureVoice: 'zh-CN-YunjianNeural',
     systemLang: 'zh-CN',
@@ -51,8 +51,8 @@ export const REGIONAL_ACCENT_PROFILES: Record<RegionalAccent, RegionalAccentProf
   taiwan: {
     id: 'taiwan',
     name: 'Taiwanese Mandarin (Guoyu / 华语)',
-    chineseName: '台湾国语 (台湾华语)',
-    badge: '🍵 台湾华语',
+    chineseName: 'Taiwanese Mandarin (台湾国语)',
+    badge: '🍵 Taiwanese (台湾华语)',
     description: 'Gentle, melodious Taiwanese Mandarin with softened retroflex friction, distinctive melodic cadences, and warm sentence-final particles.',
     azureVoice: 'zh-TW-HsiaoChenNeural',
     systemLang: 'zh-TW',

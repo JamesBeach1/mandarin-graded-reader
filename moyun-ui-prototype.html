@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>墨韵 Moyun — UI Prototype</title>
+<style>
+/* ============ DESIGN TOKENS ============ */
+:root{
+  --paper:#f4efe4; --paper2:#ece5d3; --card:#fbf8f0; --ink:#201c16; --ink2:#4a443a;
+  --ink3:#8a8172; --line:#d8cfba; --seal:#b03a2e; --seal-d:#8e2d23; --gold:#a97b1f;
+  --jade:#3f6b57; --shadow:0 1px 2px rgba(32,28,22,.08),0 8px 24px rgba(32,28,22,.08);
+  --t1:#1f6f43; --t2:#b3541e; --t3:#8a3fa0; --t4:#b03a2e; --t5:#6b7a86;
+}
+body[data-theme="dark"]{
+  --paper:#16130f; --paper2:#1d1913; --card:#221d16; --ink:#e9e2d2; --ink2:#c4bba7;
+  --ink3:#8d8471; --line:#3a332a; --seal:#d0574a; --seal-d:#d0574a; --gold:#d4a94e;
+  --jade:#6fae94; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+  --t1:#5cb884; --t2:#e08a52; --t3:#c084d8; --t4:#e06a5c; --t5:#9fb0bc;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:"Avenir Next","Segoe UI",system-ui,sans-serif;
+  background:var(--paper); color:var(--ink);
+  transition:background .3s,color .3s;
+  /* subtle rice-paper texture */
+  background-image:radial-gradient(rgba(120,110,90,.05) 1px,transparent 1px);
+  background-size:22px 22px;
+}
+.zh{font-family:"Songti SC","Noto Serif SC","STSong","SimSun",serif}
+button{font:inherit;color:inherit;cursor:pointer;border:none;background:none}
+h1,h2,h3{font-weight:600}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+
+/* ============ TOP NAV ============ */
+.topnav{
+  position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:8px;
+  padding:0 20px;height:58px;background:var(--card);border-bottom:1px solid var(--line);
+  box-shadow:var(--shadow);
+}
+.brand{display:flex;align-items:center;gap:10px;margin-right:18px}
+.seal{
+  width:34px;height:34px;background:var(--seal);color:#f6efe2;border-radius:6px;
+  display:grid;place-items:center;font-size:19px;font-weight:700;
+  font-family:"Songti SC","Noto Serif SC",serif;box-shadow:inset 0 0 0 2px rgba(246,239,226,.35);
+}
+.brand b{font-size:16px;letter-spacing:.5px}
+.brand span{color:var(--ink3);font-size:12px}
+.navtab{
+  padding:8px 16px;border-radius:10px;font-size:14px;color:var(--ink2);
+  display:flex;align-items:center;gap:7px;
+}
+.navtab:hover{background:var(--paper2)}
+.navtab.active{background:var(--ink);color:var(--paper)}
+.navtab .dot{width:7px;height:7px;border-radius:50%;background:var(--seal)}
+.nav-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.iconbtn{
+  width:36px;height:36px;border-radius:10px;border:1px solid var(--line);
+  display:grid;place-items:center;font-size:16px;background:var(--card);
+}
+.iconbtn:hover{border-color:var(--ink3)}
+
+/* ============ LAYOUT ============ */
+main{max-width:1180px;margin:0 auto;padding:26px 22px 80px}
+.workspace{display:none;animation:fade .25s ease}
+.workspace.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+.section-title{display:flex;align-items:baseline;gap:10px;margin:6px 2px 14px}
+.section-title h2{font-size:20px}
+.section-title span{color:var(--ink3);font-size:13px}
+.hint{font-size:11px;color:var(--ink3);margin-top:6px;line-height:1.5}
+
+/* ============ BUTTONS ============ */
+.btn{
+  display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:10px;
+  font-size:13.5px;border:1px solid var(--line);background:var(--card);color:var(--ink);
+  transition:all .15s;white-space:nowrap;
+}
+.btn:hover{border-color:var(--ink3);transform:translateY(-1px)}
+.btn.primary{background:var(--seal);border-color:var(--seal);color:#f6efe2;font-weight:600}
+.btn.primary:hover{background:var(--seal-d)}
+.btn.dark{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.btn.on{background:var(--jade);border-color:var(--jade);color:#f2f7f4}
+.btn.sm{padding:5px 10px;font-size:12px;border-radius:8px}
+.spinner{
+  width:14px;height:14px;border:2px solid rgba(246,239,226,.35);border-top-color:#f6efe2;
+  border-radius:50%;animation:spin 1s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.badge{font-size:10.5px;padding:2px 7px;border-radius:20px;font-weight:700;letter-spacing:.4px}
+.badge.hsk{background:var(--gold);color:#fff}
+.badge.soft{background:var(--paper2);color:var(--ink2);border:1px solid var(--line)}
+
+/* ============ 1a. GENERATOR ============ */
+.generator{padding:20px;margin-bottom:26px}
+.gen-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.gen-row input[type=text]{
+  flex:1;min-width:240px;padding:11px 14px;border-radius:10px;border:1px solid var(--line);
+  background:var(--paper);color:var(--ink);font-size:14px;outline:none;
+}
+.gen-row input:focus{border-color:var(--seal)}
+select{
+  padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--paper);
+  color:var(--ink);font-size:13px;outline:none;
+}
+
+/* ============ 1b. READING THEATER ============ */
+.theater{overflow:hidden;margin-bottom:26px}
+.audio-bar{
+  position:sticky;top:58px;z-index:40;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:12px 18px;background:var(--paper2);border-bottom:1px solid var(--line);
+}
+.transport{display:flex;gap:6px}
+.tbtn{
+  width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--card);
+  display:grid;place-items:center;font-size:15px;
+}
+.tbtn.play{background:var(--seal);border-color:var(--seal);color:#fff;width:44px;height:44px}
+.slider-wrap{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink3)}
+input[type=range]{accent-color:var(--seal);width:110px}
+.audio-selects{display:flex;gap:8px;flex-wrap:wrap}
+.eq{display:flex;align-items:flex-end;gap:2px;height:16px;margin-left:auto}
+.eq i{width:3px;background:var(--jade);border-radius:2px;animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(2){animation-delay:.15s}.eq i:nth-child(3){animation-delay:.3s}
+.eq i:nth-child(4){animation-delay:.45s}.eq i:nth-child(5){animation-delay:.6s}
+@keyframes eq{0%,100%{height:5px}50%{height:16px}}
+
+.toolbar{padding:12px 18px;border-bottom:1px solid var(--line);display:flex;gap:18px;flex-wrap:wrap;align-items:center;background:var(--card)}
+.tb-cluster{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.tb-label{font-size:10.5px;text-transform:uppercase;letter-spacing:1.2px;color:var(--ink3);margin-right:2px}
+.divider{width:1px;height:26px;background:var(--line)}
+.chip{
+  padding:6px 11px;border-radius:8px;border:1px solid var(--line);font-size:12.5px;
+  background:var(--paper);color:var(--ink2);display:inline-flex;gap:6px;align-items:center;
+}
+.chip:hover{border-color:var(--ink3)}
+.chip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.switch{width:34px;height:19px;border-radius:12px;background:var(--jade);position:relative;flex:none}
+.switch::after{content:"";position:absolute;top:2.5px;right:2.5px;width:14px;height:14px;border-radius:50%;background:#fff}
+.switch.off{background:var(--line)}
+.switch.off::after{left:2.5px;right:auto}
+.diff-wrap{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink3)}
+.diff-wrap b{color:var(--seal);font-size:13px}
+
+/* story text */
+.story-body{padding:34px 44px 30px;max-width:820px;margin:0 auto}
+.story-title{font-family:"Songti SC","Noto Serif SC",serif;font-size:27px;margin-bottom:4px;letter-spacing:2px}
+.story-meta{font-size:12.5px;color:var(--ink3);margin-bottom:26px;display:flex;gap:12px;align-items:center}
+.story-text{font-family:"Songti SC","Noto Serif SC",serif;font-size:25px;line-height:2.5;letter-spacing:1px}
+.story-text p{margin-bottom:26px}
+ruby{cursor:pointer;border-radius:4px;padding:0 1px;transition:background .15s}
+ruby:hover{background:rgba(176,58,46,.12)}
+ruby rt{font-size:12.5px;color:var(--ink3);letter-spacing:0;font-family:"Avenir Next",system-ui}
+/* tone colours */
+.tc.t1, .tc.t1 rt{color:var(--t1)} .tc.t2, .tc.t2 rt{color:var(--t2)}
+.tc.t3, .tc.t3 rt{color:var(--t3)} .tc.t4, .tc.t4 rt{color:var(--t4)}
+.tc.t5, .tc.t5 rt{color:var(--t5)}
+/* grammar gold underline */
+.gr{border-bottom:2.5px solid var(--gold);padding-bottom:1px;cursor:help}
+.gr:hover{background:rgba(169,123,31,.14)}
+/* chengyu token */
+.cy{
+  display:inline-flex;gap:2px;padding:2px 6px;margin:0 2px;border:1.5px dashed var(--jade);
+  border-radius:8px;background:rgba(63,107,87,.08);cursor:pointer;vertical-align:middle;
+}
+/* active sentence */
+.active-sent{background:rgba(63,107,87,.13);border-radius:8px;padding:2px 6px;box-shadow:inset 0 0 0 1px rgba(63,107,87,.25)}
+/* cloze blank */
+.cloze{
+  display:inline-grid;place-items:center;min-width:34px;height:40px;border-radius:8px;
+  border:1.5px dashed var(--seal);color:var(--seal);font-size:15px;background:rgba(176,58,46,.06);
+  cursor:pointer;vertical-align:middle;margin:0 2px;
+}
+/* frequency overlay */
+.freq{border-bottom:2px dotted var(--jade)}
+/* translation card */
+.trans{
+  margin:14px 0 4px;padding:12px 16px;border-left:3px solid var(--jade);background:var(--paper2);
+  border-radius:0 10px 10px 0;font-size:14.5px;color:var(--ink2);line-height:1.6;font-family:inherit;
+}
+/* vertical mode */
+.story-text.vertical{writing-mode:vertical-rl;height:560px;overflow-x:auto;font-size:23px;line-height:2.3}
+.story-text.vertical p{margin:0 0 0 24px}
+
+/* continue + adventure */
+.story-footer{padding:22px 44px 34px;border-top:1px dashed var(--line);max-width:820px;margin:0 auto}
+.continue-row{display:flex;gap:10px;margin-bottom:22px}
+.continue-row input{flex:1;padding:11px 14px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);font-size:14px}
+.adv-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.adv-card{
+  padding:16px;border-radius:14px;border:1.5px solid var(--line);background:var(--paper);
+  text-align:left;transition:all .15s;
+}
+.adv-card:hover{border-color:var(--seal);transform:translateY(-3px);box-shadow:var(--shadow)}
+.adv-card .emoji{font-size:22px}
+.adv-card b{display:block;margin:8px 0 4px;font-size:14px}
+.adv-card p{font-size:12.5px;color:var(--ink3);line-height:1.5}
+.adv-card .tag{display:inline-block;margin-top:10px;font-size:10.5px;color:var(--jade);font-weight:700;letter-spacing:.5px}
+
+/* focus mode */
+body.focus .topnav,body.focus .toolbar,body.focus .story-footer,body.focus .library-wrap{display:none}
+body.focus .audio-bar{top:0}
+
+/* ============ 2. LIBRARY ============ */
+.library-wrap{margin-bottom:10px}
+.lib-head{display:flex;gap:12px;align-items:center;margin-bottom:16px}
+.lib-head input{flex:1;padding:11px 16px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:14px}
+.lib-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.story-card{padding:18px;display:flex;flex-direction:column;gap:10px}
+.story-card h3{font-size:16px}
+.story-card .meta{font-size:12px;color:var(--ink3);display:flex;gap:10px;align-items:center}
+.story-card .excerpt{font-size:13px;color:var(--ink2);line-height:1.6;font-family:"Songti SC","Noto Serif SC",serif}
+.story-card .row{display:flex;gap:8px;margin-top:auto}
+
+/* ============ 3. SPEAKING ============ */
+.subnav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:22px}
+.subtab{padding:8px 15px;border-radius:10px;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--ink2)}
+.subtab.active{background:var(--seal);border-color:var(--seal);color:#fff;font-weight:600}
+.speaking-pane{display:none}
+.speaking-pane.active{display:block}
+.tool-card{padding:24px;margin-bottom:18px}
+.tool-card h3{font-size:17px;margin-bottom:4px}
+.tool-card .sub{font-size:13px;color:var(--ink3);margin-bottom:20px}
+
+/* tone visualizer */
+.tv-layout{display:grid;grid-template-columns:1fr 260px;gap:26px;align-items:start}
+.pitch-frame{border:1px solid var(--line);border-radius:14px;background:var(--paper);padding:10px}
+.tone-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.tone-chip{padding:9px 14px;border-radius:12px;border:1.5px solid var(--line);text-align:center;line-height:1.3}
+.tone-chip b{font-size:17px;font-family:"Songti SC",serif;display:block}
+.tone-chip span{font-size:11.5px;color:var(--ink3)}
+.tone-chip.sel{border-color:var(--t3);background:rgba(138,63,160,.1);box-shadow:0 0 0 1px var(--t3)}
+.mic-big{
+  width:74px;height:74px;border-radius:50%;background:var(--seal);color:#fff;font-size:26px;
+  display:grid;place-items:center;margin:6px auto;box-shadow:0 6px 18px rgba(176,58,46,.4);
+}
+.mic-big.rec{animation:pulse 1.4s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(176,58,46,.45)}70%{box-shadow:0 0 0 18px rgba(176,58,46,0)}100%{box-shadow:0 0 0 0 rgba(176,58,46,0)}}
+.side-stats{display:flex;flex-direction:column;gap:12px}
+.stat-box{border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--paper)}
+.stat-box .n{font-size:24px;font-weight:700}
+.stat-box .l{font-size:11.5px;color:var(--ink3)}
+
+/* tone pairs grid */
+.pair-grid{display:grid;grid-template-columns:70px repeat(5,1fr);gap:6px;font-size:12.5px}
+.pair-grid .hd{display:grid;place-items:center;font-weight:700;color:var(--ink3);font-size:11px;text-transform:uppercase}
+.pair-cell{
+  padding:10px 6px;border-radius:10px;border:1px solid var(--line);background:var(--paper);
+  text-align:center;line-height:1.4;transition:all .12s;
+}
+.pair-cell:hover{border-color:var(--seal);background:rgba(176,58,46,.07)}
+.pair-cell b{font-family:"Songti SC",serif;font-size:15px;display:block}
+.pair-cell span{color:var(--ink3);font-size:11px}
+.pair-cell.sandhi{border:1.5px dashed var(--t3);background:rgba(138,63,160,.08)}
+.sandhi-note{margin-top:14px;padding:12px 16px;border-radius:12px;background:rgba(138,63,160,.08);border:1px dashed var(--t3);font-size:13px;color:var(--ink2);line-height:1.7}
+
+/* minimal pairs */
+.mp-stage{display:flex;gap:18px;align-items:stretch;justify-content:center;margin:8px 0 18px}
+.mp-opt{
+  flex:1;max-width:230px;padding:26px 18px;border-radius:16px;border:2px solid var(--line);
+  background:var(--paper);text-align:center;
+}
+.mp-opt b{font-size:34px;font-family:"Songti SC",serif;display:block}
+.mp-opt span{color:var(--ink3);font-size:13px}
+.mp-opt.correct{border-color:var(--jade);background:rgba(63,107,87,.1)}
+.mp-mid{display:flex;flex-direction:column;justify-content:center;gap:8px;color:var(--ink3);font-size:12px;text-align:center}
+.feedback-ok{color:var(--jade);font-weight:700;text-align:center;font-size:15px}
+
+/* shadowing */
+.sh-layout{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.wave{border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:12px;height:120px;display:flex;align-items:center;gap:2px;overflow:hidden}
+.wave i{flex:1;background:var(--jade);border-radius:2px;opacity:.85;min-width:2px}
+.wave.user i{background:var(--seal);opacity:.7}
+.score-ring{
+  width:96px;height:96px;border-radius:50%;display:grid;place-items:center;margin:0 auto;
+  background:conic-gradient(var(--jade) 0 82%,var(--line) 82% 100%);
+}
+.score-ring div{width:74px;height:74px;border-radius:50%;background:var(--card);display:grid;place-items:center;font-size:21px;font-weight:700}
+.phon-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.ph{font-size:12px;padding:4px 10px;border-radius:8px}
+.ph.ok{background:rgba(63,107,87,.14);color:var(--jade)}
+.ph.mid{background:rgba(169,123,31,.16);color:var(--gold)}
+.ph.bad{background:rgba(176,58,46,.14);color:var(--seal)}
+
+/* jigsaw */
+.jig-chips{display:flex;gap:10px;justify-content:center;margin:14px 0 22px;flex-wrap:wrap}
+.jig-chip{
+  padding:12px 20px;border-radius:12px;border:1.5px solid var(--line);background:var(--paper);
+  font-family:"Songti SC",serif;font-size:19px;cursor:grab;box-shadow:0 2px 0 var(--line);
+}
+.jig-chip:hover{border-color:var(--seal)}
+.jig-slots{display:flex;gap:10px;justify-content:center;margin-bottom:18px}
+.jig-slot{
+  min-width:84px;height:52px;border-radius:12px;border:2px dashed var(--line);
+  display:grid;place-items:center;color:var(--ink3);font-size:12px;font-family:"Songti SC",serif;
+}
+.jig-slot.filled{border-style:solid;border-color:var(--jade);background:rgba(63,107,87,.08);font-size:19px;color:var(--ink)}
+
+/* roleplay */
+.persona-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.persona{padding:18px 14px;border-radius:14px;border:1.5px solid var(--line);background:var(--paper);text-align:center}
+.persona:hover{border-color:var(--seal)}
+.persona.sel{border-color:var(--seal);background:rgba(176,58,46,.07);box-shadow:0 0 0 1px var(--seal)}
+.persona .pe{font-size:30px}
+.persona b{display:block;margin-top:8px;font-size:14px}
+.persona span{font-size:11.5px;color:var(--ink3)}
+.chat{border:1px solid var(--line);border-radius:16px;background:var(--paper);padding:18px;display:flex;flex-direction:column;gap:12px;max-width:640px}
+.bubble{max-width:75%;padding:11px 15px;border-radius:14px;font-size:14.5px;line-height:1.6}
+.bubble.ai{background:var(--card);border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:4px}
+.bubble.me{background:var(--seal);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.bubble .py{display:block;font-size:11px;opacity:.65;margin-top:3px;font-style:normal}
+.sugg{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.chat-input{display:flex;gap:8px;margin-top:6px}
+.chat-input input{flex:1;padding:10px 13px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:13.5px}
+.mission{padding:12px 16px;border-radius:12px;background:rgba(169,123,31,.1);border:1px dashed var(--gold);font-size:13px;color:var(--ink2);margin-bottom:16px;max-width:640px;line-height:1.6}
+
+/* heatmap */
+.heat-wrap{overflow-x:auto}
+.heat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:6px;min-width:640px}
+.heat-cell{
+  aspect-ratio:1;border-radius:9px;display:grid;place-items:center;font-size:13px;
+  font-family:"Songti SC",serif;border:1px solid var(--line);cursor:pointer;transition:transform .12s;
+}
+.heat-cell:hover{transform:scale(1.12)}
+.hg{background:rgba(63,107,87,.75);color:#fff;border-color:transparent}
+.hy{background:rgba(169,123,31,.55);color:#fff;border-color:transparent}
+.hr{background:rgba(176,58,46,.7);color:#fff;border-color:transparent}
+.hn{background:var(--paper2);color:var(--ink3)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--ink3);margin-top:14px;align-items:center}
+.legend i{width:13px;height:13px;border-radius:4px;display:inline-block;vertical-align:-2px;margin-right:5px}
+
+/* ============ 4. REVIEW ============ */
+.srs-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;align-items:center}
+.srs-layout{display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:start}
+.flashcard{
+  min-height:360px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;cursor:pointer;position:relative;overflow:hidden;
+}
+.flashcard::before{
+  content:"墨";position:absolute;right:-30px;bottom:-60px;font-size:220px;opacity:.05;
+  font-family:"Songti SC",serif;
+}
+.flashcard .char{font-size:96px;font-family:"Songti SC","Noto Serif SC",serif;letter-spacing:4px}
+.flashcard .tap{font-size:12px;color:var(--ink3);letter-spacing:1px}
+.fc-back{width:100%;padding:0 40px;text-align:center}
+.fc-back .py{font-size:22px;color:var(--seal);margin-bottom:8px}
+.fc-back .def{font-size:17px;margin-bottom:10px}
+.fc-back .ex{font-size:14px;color:var(--ink2);font-family:"Songti SC",serif;margin-bottom:6px}
+.grade-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+.grade{
+  padding:14px 8px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);
+  text-align:center;line-height:1.4;
+}
+.grade b{display:block;font-size:14px}
+.grade span{font-size:11px;color:var(--ink3)}
+.grade.g1{border-top:3px solid var(--seal)} .grade.g2{border-top:3px solid var(--gold)}
+.grade.g3{border-top:3px solid var(--jade)} .grade.g4{border-top:3px solid #4a7fb5}
+.review-side{display:flex;flex-direction:column;gap:16px}
+.activity{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.act-cell{aspect-ratio:1;border-radius:5px;background:var(--paper2)}
+.act-cell.a1{background:rgba(63,107,87,.35)} .act-cell.a2{background:rgba(63,107,87,.6)}
+.act-cell.a3{background:rgba(63,107,87,.85)} .act-cell.today{box-shadow:0 0 0 2px var(--seal)}
+.analytics{display:flex;flex-direction:column;gap:10px}
+.an-row{display:flex;justify-content:space-between;font-size:13px;color:var(--ink2);border-bottom:1px dashed var(--line);padding-bottom:8px}
+.an-row b{font-size:15px}
+.done-state{text-align:center;padding:60px 20px;color:var(--ink3)}
+.done-state .big{font-size:52px}
+
+/* ============ 5. LESSONS ============ */
+.map-frame{border:1px solid var(--line);border-radius:18px;background:
+  radial-gradient(ellipse at 30% 20%,rgba(63,107,87,.07),transparent 55%),
+  radial-gradient(ellipse at 75% 75%,rgba(169,123,31,.08),transparent 50%),var(--card);
+  padding:10px;overflow-x:auto}
+.map-svg{display:block;min-width:860px;width:100%}
+.lesson-node{cursor:pointer}
+.lesson-node:hover .node-disc{filter:brightness(1.08)}
+.node-disc{stroke:var(--line)}
+.node-disc.done{fill:var(--jade)}
+.node-disc.open{fill:var(--card)}
+.node-disc.locked{fill:var(--paper2)}
+.map-legend{display:flex;gap:18px;font-size:12px;color:var(--ink3);padding:12px 16px;flex-wrap:wrap}
+.map-legend i{width:11px;height:11px;border-radius:50%;display:inline-block;margin-right:6px;vertical-align:-1px}
+.lesson-modal-progress{display:flex;gap:5px;margin:14px 0}
+.lmp{flex:1;height:7px;border-radius:5px;background:var(--paper2)}
+.lmp.done{background:var(--jade)} .lmp.cur{background:var(--seal)}
+
+/* ============ SETTINGS ============ */
+.set-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.set-card{padding:22px}
+.set-card h3{font-size:15.5px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.set-row{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px dashed var(--line);font-size:13.5px;gap:12px}
+.set-row:last-child{border-bottom:none}
+.set-row small{display:block;color:var(--ink3);font-size:11.5px;margin-top:2px}
+
+/* ============ MODALS ============ */
+.modal-back{
+  position:fixed;inset:0;background:rgba(20,16,10,.55);backdrop-filter:blur(4px);
+  display:none;place-items:center;z-index:100;padding:20px;
+}
+.modal-back.open{display:grid}
+.modal{
+  width:min(620px,94vw);max-height:86vh;overflow-y:auto;background:var(--card);
+  border:1px solid var(--line);border-radius:20px;box-shadow:0 24px 70px rgba(0,0,0,.35);
+  animation:pop .22s ease;
+}
+@keyframes pop{from{opacity:0;transform:scale(.94) translateY(10px)}to{opacity:1}}
+.modal-hd{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card);border-radius:20px 20px 0 0;z-index:2}
+.modal-hd h3{font-size:17px}
+.modal-x{width:32px;height:32px;border-radius:9px;border:1px solid var(--line);display:grid;place-items:center}
+.modal-bd{padding:22px}
+/* dictionary */
+.dict-char{font-size:74px;font-family:"Songti SC","Noto Serif SC",serif;text-align:center;margin:4px 0 8px}
+.dict-py{text-align:center;font-size:19px;color:var(--seal);margin-bottom:14px}
+.dict-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.dict-item{border:1px solid var(--line);border-radius:12px;padding:11px 13px;background:var(--paper)}
+.dict-item .l{font-size:10.5px;text-transform:uppercase;letter-spacing:1px;color:var(--ink3)}
+.dict-item .v{font-size:14px;margin-top:3px}
+.dict-def{padding:13px 16px;border-radius:12px;background:var(--paper2);font-size:14.5px;line-height:1.6;margin-bottom:16px}
+.dict-btns{display:flex;gap:8px;flex-wrap:wrap}
+.homophone{margin-top:14px;font-size:12.5px;color:var(--gold);background:rgba(169,123,31,.1);padding:9px 13px;border-radius:10px}
+/* culture */
+.culture-list{display:flex;flex-direction:column;gap:9px;margin-bottom:16px}
+.culture-item{display:flex;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--paper);cursor:pointer;align-items:center}
+.culture-item.sel{border-color:var(--seal);background:rgba(176,58,46,.06)}
+.culture-item .ci{font-size:22px}
+.culture-item b{font-size:14px;display:block}
+.culture-item span{font-size:11.5px;color:var(--ink3)}
+.dossier{border:1px dashed var(--line);border-radius:14px;padding:16px;font-size:13.5px;line-height:1.75;color:var(--ink2)}
+/* grammar directory */
+.gd-search{width:100%;padding:11px 15px;border-radius:11px;border:1px solid var(--line);background:var(--paper);color:var(--ink);margin-bottom:16px;font-size:14px}
+.gd-item{border:1px solid var(--line);border-radius:12px;padding:13px 16px;margin-bottom:10px;background:var(--paper)}
+.gd-item b{font-size:15px;font-family:"Songti SC",serif}
+.gd-item .f{color:var(--gold);font-size:12.5px;margin:4px 0}
+.gd-item p{font-size:13px;color:var(--ink2)}
+.gd-item .src{font-size:11px;color:var(--jade);margin-top:6px}
+/* velocity chart */
+.vel-chart{border:1px solid var(--line);border-radius:14px;background:var(--paper);padding:14px}
+.vel-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+/* share */
+.qr-box{width:172px;height:172px;margin:0 auto 16px;border:8px solid #fff;border-radius:12px;background:#fff;display:grid;grid-template-columns:repeat(17,1fr);grid-template-rows:repeat(17,1fr);gap:0;box-shadow:var(--shadow)}
+.qr-box i{background:#1a1a1a}
+.qr-box i.w{background:#fff}
+.share-btns{display:flex;flex-direction:column;gap:9px}
+/* frequency */
+.freq-pct{text-align:center;margin-bottom:6px}
+.freq-pct b{font-size:42px;color:var(--jade)}
+.freq-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:6px;margin-top:16px}
+.freq-cell{aspect-ratio:1;display:grid;place-items:center;border-radius:8px;font-family:"Songti SC",serif;font-size:15px;background:rgba(63,107,87,.12);border:1px solid rgba(63,107,87,.3)}
+.freq-cell.miss{background:var(--paper2);color:var(--ink3);border-style:dashed}
+/* deck manager */
+.deck-row{display:flex;align-items:center;justify-content:space-between;padding:12px 15px;border:1px solid var(--line);border-radius:12px;margin-bottom:9px;background:var(--paper);font-size:14px}
+
+@media (max-width:900px){
+  .adv-grid,.lib-grid,.persona-grid,.set-grid{grid-template-columns:1fr}
+  .tv-layout,.sh-layout,.srs-layout{grid-template-columns:1fr}
+  .story-body,.story-footer{padding-left:20px;padding-right:20px}
+  .pair-grid{grid-template-columns:52px repeat(5,1fr);font-size:11px}
+  .navtab{padding:8px 10px;font-size:12.5px}
+}
+</style>
+</head>
+<body data-theme="light">
+
+<!-- ================= TOP NAV ================= -->
+<header class="topnav">
+  <div class="brand">
+    <div class="seal zh">墨</div>
+    <div><b class="zh">墨韵</b> <span>Moyun</span></div>
+  </div>
+  <button class="navtab active" data-ws="ws-reading"><span class="dot"></span>Reading 阅读</button>
+  <button class="navtab" data-ws="ws-speaking">Speaking 口语</button>
+  <button class="navtab" data-ws="ws-review">Review 复习 <span class="badge" style="background:var(--seal);color:#fff">23</span></button>
+  <button class="navtab" data-ws="ws-lessons">Lessons 课程</button>
+  <div class="nav-right">
+    <button class="iconbtn" id="themeBtn" title="Toggle dark / light">☾</button>
+    <button class="iconbtn" title="Settings" data-ws-go="ws-settings">⚙</button>
+  </div>
+</header>
+
+<main>
+
+<!-- ================= 1. READING ================= -->
+<section class="workspace active" id="ws-reading">
+
+  <div class="section-title"><h2 class="zh">阅读工坊</h2><span>Reading Workshop</span></div>
+
+  <!-- 1a. Generator -->
+  <div class="card generator">
+    <div class="gen-row">
+      <input type="text" value="ordering coffee in Beijing" placeholder="Story idea or topic…">
+      <select><option>HSK 2 · 初级</option><option>HSK 1</option><option>HSK 3</option><option>HSK 4</option><option>HSK 5</option><option>HSK 6</option></select>
+      <button class="btn primary"><span class="spinner"></span>Generating…</button>
+      <button class="btn">⬆ Import .moyun.json</button>
+    </div>
+    <div class="hint">Gemini will write a graded story for HSK 2 using mostly Level 1–2 vocabulary, with pinyin, grammar patterns and chengyu marked automatically.</div>
+  </div>
+
+  <!-- 1b. Theater -->
+  <div class="card theater">
+    <!-- Audio Player Bar -->
+    <div class="audio-bar">
+      <div class="transport">
+        <button class="tbtn" title="Back 15s">⏮</button>
+        <button class="tbtn play" title="Pause">⏸</button>
+        <button class="tbtn" title="Stop">⏹</button>
+        <button class="tbtn" title="Forward 15s">⏭</button>
+      </div>
+      <div class="slider-wrap"><span>0.5×</span><input type="range" min="50" max="200" value="100"><span>2×</span><b style="color:var(--ink)">1.0×</b></div>
+      <div class="audio-selects">
+        <select><option>🔊 Azure Neural</option><option>Google Cloud</option><option>System TTS</option></select>
+        <select><option>Voice · Xiaoxiao 晓晓</option><option>Yunxi 云希</option><option>Xiaoyi 晓伊</option></select>
+        <select><option>普通话 Standard</option><option>北京儿化 Beijing</option><option>台湾华语 Taiwan</option></select>
+      </div>
+      <div class="eq"><i></i><i></i><i></i><i></i><i></i></div>
+      <span style="font-size:12px;color:var(--ink3)">00:42 / 02:17</span>
+    </div>
+
+    <!-- Toolbar Cluster 1 · View -->
+    <div class="toolbar">
+      <span class="tb-label">View</span>
+      <div class="tb-cluster">
+        <button class="chip on"><span class="switch"></span>Pinyin</button>
+        <select><option>Fading · Adaptive</option><option>Fading · All</option><option>Fading · By Level</option></select>
+        <button class="chip">Pinyin ⇄ 注音 Zhuyin</button>
+        <button class="chip">简体 Simplified ⇄ 繁體</button>
+        <button class="chip" id="vertBtn">⬒ Vertical Layout</button>
+        <button class="chip" id="focusBtn">⛶ Focus Mode</button>
+      </div>
+      <div class="divider"></div>
+      <!-- Toolbar Cluster 2 · Text Tools -->
+      <span class="tb-label">Text</span>
+      <div class="tb-cluster">
+        <button class="chip on">🎨 Tone Colours · Both</button>
+        <button class="chip on">✏️ Grammar</button>
+        <div class="diff-wrap">Difficulty <input type="range" min="1" max="6" value="2" style="width:90px"> <b>HSK 2</b></div>
+        <button class="chip">▢ Cloze Mode</button>
+        <button class="chip" data-modal="m-freq">📊 Frequency</button>
+      </div>
+      <div class="divider"></div>
+      <!-- Toolbar Cluster 3 · Actions -->
+      <span class="tb-label">Actions</span>
+      <div class="tb-cluster">
+        <button class="chip on">🔊 Read Aloud</button>
+        <button class="chip on">🌐 Translation</button>
+        <button class="chip" data-modal="m-vel">⏱ Vocabulary Speed</button>
+        <button class="chip">💬 Export Subtitles</button>
+        <button class="chip" data-modal="m-culture">🏮 Culture Notes</button>
+        <button class="chip" data-modal="m-grammar">📖 Grammar Directory</button>
+        <div style="position:relative">
+          <button class="chip">Actions ▾</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Story Text -->
+    <div class="story-body">
+      <div class="story-title zh">在北京的咖啡店</div>
+      <div class="story-meta">
+        <span class="badge hsk">HSK 2</span><span>214 characters</span><span>·</span>
+        <span>Generated 22 Sep 2026</span><span>·</span><span style="color:var(--jade)">91% Top-500 coverage</span>
+      </div>
+      <div class="story-text" id="storyText">
+
+        <p>
+          <ruby class="tc t1">星<rt>xīng</rt></ruby><ruby class="tc t1">期<rt>qī</rt></ruby><ruby class="tc t1">天<rt>tiān</rt></ruby><ruby class="tc t3">早<rt>zǎo</rt></ruby><ruby class="tc t5">上<rt>shang</rt></ruby>，<ruby class="tc t3">我<rt>wǒ</rt></ruby><ruby class="tc t4">去<rt>qù</rt></ruby><ruby class="tc t5">了<rt>le</rt></ruby><ruby class="tc t2">学<rt>xué</rt></ruby><ruby class="tc t4">校<rt>xiào</rt></ruby><ruby class="tc t4">附<rt>fù</rt></ruby><ruby class="tc t4">近<rt>jìn</rt></ruby><ruby class="tc t5">的<rt>de</rt></ruby><span class="cloze" title="Tap to reveal">?</span><ruby class="tc t1">啡<rt>fēi</rt></ruby><ruby class="tc t4">店<rt>diàn</rt></ruby>。<br>
+          <span class="trans">On Sunday morning, I went to the café near my school.</span>
+        </p>
+
+        <p class="active-sent">
+          <ruby class="tc t2">服<rt>fú</rt></ruby><ruby class="tc t4">务<rt>wù</rt></ruby><ruby class="tc t2">员<rt>yuán</rt></ruby><ruby class="tc t4">笑<rt>xiào</rt></ruby><ruby class="tc t5">着<rt>zhe</rt></ruby><ruby class="tc t4">问<rt>wèn</rt></ruby><ruby class="tc t3">我<rt>wǒ</rt></ruby>：「<ruby class="tc t2">您<rt>nín</rt></ruby><span class="gr" title="想 + verb — desire to do something"><ruby class="tc t3">想<rt>xiǎng</rt></ruby></span><span class="gr" title="喝 + 点儿 — drink a little"><ruby class="tc t1">喝<rt>hē</rt></ruby><ruby class="tc t3">点<rt>diǎn</rt></ruby><ruby class="tc t2">儿<rt>ér</rt></ruby></span><span class="freq"><ruby class="tc t2">什<rt>shén</rt></ruby><ruby class="tc t5">么<rt>me</rt></ruby></span>？」<br>
+          <span class="trans">The waiter smiled and asked me: “What would you like to drink?”</span>
+        </p>
+
+        <p>
+          <ruby class="tc t3">我<rt>wǒ</rt></ruby><ruby class="tc t1">说<rt>shuō</rt></ruby>：「<ruby class="tc t3">我<rt>wǒ</rt></ruby><ruby class="tc t4">要<rt>yào</rt></ruby><ruby class="tc t2">一<rt>yí</rt></ruby><ruby class="tc t1">杯<rt>bēi</rt></ruby><ruby class="tc t4">热<rt>rè</rt></ruby><ruby class="tc t3">拿<rt>ná</rt></ruby><ruby class="tc t3">铁<rt>tiě</rt></ruby>，<ruby class="tc t4">谢<rt>xiè</rt></ruby><ruby class="tc t5">谢<rt>xie</rt></ruby>。」<ruby class="tc t1">她<rt>tā</rt></ruby><ruby class="tc t3">很<rt>hěn</rt></ruby><ruby class="tc t4">快<rt>kuài</rt></ruby><ruby class="tc t4">就<rt>jiù</rt></ruby><ruby class="tc t4">做<rt>zuò</rt></ruby><ruby class="tc t3">好<rt>hǎo</rt></ruby><ruby class="tc t5">了<rt>le</rt></ruby>。<br>
+          <span class="trans">I said: “I’d like a hot latte, thanks.” She made it very quickly.</span>
+        </p>
+
+        <p>
+          <span class="cy" title="Chengyu · lit. ‘each kind, each sort’ — all kinds of"><ruby class="tc t4">各<rt>gè</rt></ruby><ruby class="tc t4">式<rt>shì</rt></ruby><ruby class="tc t4">各<rt>gè</rt></ruby><ruby class="tc t4">样<rt>yàng</rt></ruby></span><ruby class="tc t4">的<rt>de</rt></ruby><ruby class="tc t4">蛋<rt>dàn</rt></ruby><ruby class="tc t1">糕<rt>gāo</rt></ruby><ruby class="tc t4">放<rt>fàng</rt></ruby><ruby class="tc t4">在<rt>zài</rt></ruby><ruby class="tc t1">窗<rt>chuāng</rt></ruby><ruby class="tc t1">前<rt>qián</rt></ruby>。<br>
+          <span class="trans">All kinds of cakes were placed by the window.</span>
+        </p>
+
+        <p>
+          <ruby class="tc t1">咖<rt>kā</rt></ruby><ruby class="tc t1">啡<rt>fēi</rt></ruby><ruby class="tc t3">有<rt>yǒu</rt></ruby><ruby class="tc t2">一<rt>yì</rt></ruby><ruby class="tc t3">点<rt>diǎn</rt></ruby><ruby class="tc t2">儿<rt>ér</rt></ruby><span class="gr" title="有一点儿 — a little bit"><ruby class="tc t4">贵<rt>guì</rt></ruby></span>，<span class="gr" title="可是 — but (contrast)"><ruby class="tc t3">可<rt>kě</rt></ruby><ruby class="tc t4">是<rt>shì</rt></ruby></span><ruby class="tc t4">味<rt>wèi</rt></ruby><ruby class="tc t4">道<rt>dao</rt></ruby><span class="gr" title="好极了 — extremely good"><ruby class="tc t3">好<rt>hǎo</rt></ruby><ruby class="tc t2">极<rt>jí</rt></ruby><ruby class="tc t5">了<rt>le</rt></ruby></span>。<br>
+          <span class="trans">The coffee was a little expensive, but it tasted extremely good.</span>
+        </p>
+
+      </div>
+    </div>
+
+    <!-- Continue + Adventure -->
+    <div class="story-footer">
+      <div class="continue-row">
+        <input type="text" value="The barista teaches me how to order in Chinese next time" placeholder="Continue the story… e.g. ‘they run out of coffee’">
+        <button class="btn primary">Continue Story →</button>
+      </div>
+      <div class="adv-grid">
+        <button class="adv-card" data-modal="m-share">
+          <div class="emoji">🥐</div>
+          <b>Try a local pastry</b>
+          <p>Follow the smell of fresh 蛋挞 egg tarts to the bakery next door.</p>
+          <span class="tag">NEW VOCAB · FOOD</span>
+        </button>
+        <button class="adv-card" data-modal="m-share">
+          <div class="emoji">🌧️</div>
+          <b>Sudden Beijing rain</b>
+          <p>You forgot your umbrella — time to ask a stranger for help politely.</p>
+          <span class="tag">GRAMMAR FOCUS · 请问</span>
+        </button>
+        <button class="adv-card" data-modal="m-share">
+          <div class="emoji">👴</div>
+          <b>The regular customer</b>
+          <p>An old man has sat in the same corner seat for thirty years.</p>
+          <span class="tag">CULTURE · 老北京</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Library -->
+  <div class="library-wrap">
+    <div class="section-title"><h2 class="zh">书库</h2><span>Saved Story Library</span></div>
+    <div class="lib-head">
+      <input type="text" value="coffee" placeholder="🔍 Search stories — semantic search understands meaning, not just titles">
+    </div>
+    <div class="lib-grid">
+      <div class="card story-card">
+        <div style="display:flex;justify-content:space-between;align-items:center"><h3 class="zh">在北京的咖啡店</h3><span class="badge hsk">HSK 2</span></div>
+        <div class="meta"><span>214 字</span><span>Saved 22 Sep</span><span style="color:var(--jade)">● Open now</span></div>
+        <p class="excerpt">星期天早上，我去了学校附近的咖啡店……</p>
+        <div class="row"><button class="btn sm dark">Open</button><button class="btn sm">Share</button><button class="btn sm" style="color:var(--seal)">Delete</button></div>
+      </div>
+      <div class="card story-card">
+        <div style="display:flex;justify-content:space-between;align-items:center"><h3 class="zh">我的中国室友</h3><span class="badge hsk">HSK 3</span></div>
+        <div class="meta"><span>388 字</span><span>Saved 18 Sep</span></div>
+        <p class="excerpt">去年九月，我和一个中国男生成了室友……</p>
+        <div class="row"><button class="btn sm">Open</button><button class="btn sm">Share</button><button class="btn sm" style="color:var(--seal)">Delete</button></div>
+      </div>
+      <div class="card story-card">
+        <div style="display:flex;justify-content:space-between;align-items:center"><h3 class="zh">第一次坐高铁</h3><span class="badge hsk">HSK 4</span></div>
+        <div class="meta"><span>512 字</span><span>Saved 10 Sep</span></div>
+        <p class="excerpt">从北京到上海只要四个半小时……</p>
+        <div class="row"><button class="btn sm">Open</button><button class="btn sm">Share</button><button class="btn sm" style="color:var(--seal)">Delete</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 3. SPEAKING ================= -->
+<section class="workspace" id="ws-speaking">
+  <div class="section-title"><h2 class="zh">口语训练场</h2><span>Speaking Studio — 7 tools</span></div>
+
+  <div class="subnav">
+    <button class="subtab active" data-sp="sp-tone">🎙 Tone Visualizer</button>
+    <button class="subtab" data-sp="sp-pairs">🔀 Tone Pairs &amp; Sandhi</button>
+    <button class="subtab" data-sp="sp-minimal">👂 Minimal Pairs</button>
+    <button class="subtab" data-sp="sp-shadow">🎧 Shadowing Studio</button>
+    <button class="subtab" data-sp="sp-jigsaw">🧩 Auditory Jigsaw</button>
+    <button class="subtab" data-sp="sp-role">🎭 Roleplay Chat</button>
+    <button class="subtab" data-sp="sp-heat">🗺 Weakness Heatmap</button>
+  </div>
+
+  <!-- Tone Visualizer -->
+  <div class="speaking-pane active" id="sp-tone">
+    <div class="card tool-card">
+      <h3>Tone Visualizer · 声调可视化</h3>
+      <div class="sub">Record your voice and compare your live pitch curve against the native reference.</div>
+      <div class="tv-layout">
+        <div>
+          <div class="tone-row">
+            <button class="tone-chip"><b style="color:var(--t1)">妈</b><span>mā · 1st</span></button>
+            <button class="tone-chip"><b style="color:var(--t2)">麻</b><span>má · 2nd</span></button>
+            <button class="tone-chip sel"><b style="color:var(--t3)">马</b><span>mǎ · 3rd</span></button>
+            <button class="tone-chip"><b style="color:var(--t4)">骂</b><span>mà · 4th</span></button>
+            <button class="tone-chip"><b style="color:var(--t5)">吗</b><span>ma · neutral</span></button>
+          </div>
+          <div class="pitch-frame">
+            <svg viewBox="0 0 560 300" width="100%">
+              <defs><pattern id="grid" width="40" height="30" patternUnits="userSpaceOnUse"><path d="M40 0H0V30" fill="none" stroke="var(--line)" stroke-width="1"/></pattern></defs>
+              <rect width="560" height="300" fill="url(#grid)" rx="8"/>
+              <text x="12" y="42" font-size="11" fill="var(--ink3)">Hz 300</text>
+              <text x="12" y="152" font-size="11" fill="var(--ink3)">200</text>
+              <text x="12" y="262" font-size="11" fill="var(--ink3)">100</text>
+              <!-- T1 -->
+              <path d="M40 60 C 150 58, 250 62, 520 58" fill="none" stroke="var(--t1)" stroke-width="3" opacity=".55"/>
+              <!-- T2 -->
+              <path d="M40 240 C 120 236, 150 190, 220 100 S 380 58, 520 56" fill="none" stroke="var(--t2)" stroke-width="3" opacity=".55"/>
+              <!-- T3 selected (bold) -->
+              <path d="M40 110 C 120 116, 150 150, 170 210 C 190 258, 230 256, 260 200 S 330 150, 400 140 S 490 136, 520 134" fill="none" stroke="var(--t3)" stroke-width="5"/>
+              <!-- T4 -->
+              <path d="M40 66 C 140 78, 240 140, 330 216 S 470 252, 520 254" fill="none" stroke="var(--t4)" stroke-width="3" opacity=".55"/>
+              <!-- T5 -->
+              <path d="M40 160 C 200 164, 380 158, 520 160" fill="none" stroke="var(--t5)" stroke-width="3" opacity=".55" stroke-dasharray="6 5"/>
+              <!-- user recording -->
+              <path d="M40 118 C 100 124, 150 160, 175 215 C 200 252, 235 244, 262 196 S 340 158, 400 148 S 480 142, 520 140" fill="none" stroke="var(--seal)" stroke-width="2.5" stroke-dasharray="2 6" opacity=".9"/>
+              <text x="380" y="32" font-size="12" fill="var(--t3)" font-weight="700">— native mǎ</text>
+              <text x="380" y="52" font-size="12" fill="var(--seal)">- - your voice</text>
+            </svg>
+          </div>
+        </div>
+        <div class="side-stats">
+          <button class="mic-big rec" title="Recording…">🎙</button>
+          <div class="stat-box"><div class="n" style="color:var(--jade)">88%</div><div class="l">Tone accuracy · this attempt</div></div>
+          <div class="stat-box"><div class="n">3rd tone</div><div class="l">Weakest contour this week — dip not low enough</div></div>
+          <div class="stat-box"><div class="n">24</div><div class="l">Attempts today</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tone Pairs -->
+  <div class="speaking-pane" id="sp-pairs">
+    <div class="card tool-card">
+      <h3>Tone Pairs &amp; Sandhi · 声调组合</h3>
+      <div class="sub">All 25 combinations. Tap any cell to hear it, then record yourself for comparison.</div>
+      <div class="pair-grid" id="pairGrid"></div>
+      <div class="sandhi-note">⚡ <b>3rd-tone sandhi:</b> 两个第三声连在一起，第一个变成第二声 — <span class="zh">马马虎虎</span> is pronounced <b>má mǎ hū hū</b>. The dashed-violet cells are the 3+3 combos that transform.</div>
+    </div>
+  </div>
+
+  <!-- Minimal Pairs -->
+  <div class="speaking-pane" id="sp-minimal">
+    <div class="card tool-card" style="max-width:720px;margin:0 auto 18px">
+      <h3>Minimal Pairs · 最小对立体</h3>
+      <div class="sub">Listen to the clip, then choose which syllable you heard.</div>
+      <div style="text-align:center;margin:10px 0 18px">
+        <button class="btn dark" style="padding:13px 26px;font-size:15px">🔊 Play clip &nbsp;1 / 10</button>
+      </div>
+      <div class="mp-stage">
+        <button class="mp-opt correct"><b>shī</b><span>诗 · poetry</span><div style="margin-top:10px;font-size:11px;color:var(--jade);font-weight:700">✓ YOUR ANSWER · CORRECT</div></button>
+        <div class="mp-mid">or</div>
+        <button class="mp-opt"><b>sī</b><span>思 · to think</span></button>
+      </div>
+      <div class="feedback-ok">✓ Correct! shī vs sī — retroflex vs dental sibilant.</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;padding-top:16px;border-top:1px dashed var(--line)">
+        <span style="font-size:13px;color:var(--ink3)">Session accuracy</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:160px;height:9px;border-radius:6px;background:var(--paper2)"><div style="width:87%;height:100%;border-radius:6px;background:var(--jade)"></div></div>
+          <b style="color:var(--jade)">87%</b>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shadowing -->
+  <div class="speaking-pane" id="sp-shadow">
+    <div class="card tool-card">
+      <h3>Shadowing Studio · 影子跟读</h3>
+      <div class="sub">Play the native audio, record yourself, and compare waveforms phoneme by phoneme.</div>
+      <div style="font-size:22px;font-family:'Songti SC',serif;text-align:center;margin-bottom:4px">我想喝一杯咖啡。</div>
+      <div style="text-align:center;color:var(--ink3);font-size:13px;margin-bottom:22px">Wǒ xiǎng hē yì bēi kāfēi. <span class="badge soft" style="margin-left:8px">HSK 1 pattern</span></div>
+      <div class="sh-layout">
+        <div>
+          <div style="font-size:12px;color:var(--ink3);margin-bottom:8px">NATIVE · Xiaoxiao 0.9×</div>
+          <div class="wave" id="waveNative"></div>
+          <div style="display:flex;gap:8px;margin-top:10px"><button class="btn sm dark">🔊 Play Native</button><button class="btn sm">0.75×</button><button class="btn sm">Loop</button></div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--ink3);margin-bottom:8px">YOUR RECORDING · take 3</div>
+          <div class="wave user" id="waveUser"></div>
+          <div style="display:flex;gap:8px;margin-top:10px"><button class="btn sm primary">● Record</button><button class="btn sm">▶ Compare</button></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:30px;align-items:center;margin-top:24px;flex-wrap:wrap">
+        <div class="score-ring"><div>82</div></div>
+        <div>
+          <div style="font-size:13px;color:var(--ink3);margin-bottom:6px">PHONEME-LEVEL DIFF</div>
+          <div class="phon-chips">
+            <span class="ph ok">wǒ ✓</span><span class="ph ok">xiǎng ✓</span><span class="ph mid">hē ≈ (tone flat)</span><span class="ph ok">yì ✓</span><span class="ph bad">bēi ✗ (sounded běi)</span><span class="ph ok">kāfēi ✓</span>
+          </div>
+          <div style="font-size:12px;color:var(--ink3);margin-top:10px">Tip: your 1st tone dips slightly mid-syllable — try the Tone Visualizer for 杯 bēi.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Jigsaw -->
+  <div class="speaking-pane" id="sp-jigsaw">
+    <div class="card tool-card" style="max-width:760px;margin:0 auto 18px">
+      <h3>Auditory Jigsaw · 听力拼图</h3>
+      <div class="sub">A scrambled sentence was played: <button class="btn sm dark" style="margin-left:6px">🔊 Replay</button> — drag the word chips into the correct order.</div>
+      <div class="jig-slots">
+        <div class="jig-slot filled">我</div>
+        <div class="jig-slot">drop word</div>
+        <div class="jig-slot">drop word</div>
+        <div class="jig-slot">drop word</div>
+      </div>
+      <div class="jig-chips">
+        <button class="jig-chip">咖啡</button>
+        <button class="jig-chip">一杯</button>
+        <button class="jig-chip">想喝</button>
+        <button class="jig-chip">☁️</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:12.5px;color:var(--ink3)">Streak: 6 🔥 · Difficulty: HSK 2</span>
+        <button class="btn primary">Check Answer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Roleplay -->
+  <div class="speaking-pane" id="sp-role">
+    <div class="card tool-card">
+      <h3>Roleplay Chat · 情景对话</h3>
+      <div class="sub">Pick a persona, complete the mission. Online: Gemini AI · Offline: keyword dialog tree.</div>
+      <div class="persona-grid">
+        <button class="persona sel"><div class="pe">☕</div><b>Coffee Shop Barista</b><span>点单与礼貌用语</span></button>
+        <button class="persona"><div class="pe">🚕</div><b>Taxi Driver</b><span>问路 · 谈价钱</span></button>
+        <button class="persona"><div class="pe">🏠</div><b>Landlord</b><span>报修 · 房租</span></button>
+        <button class="persona"><div class="pe">🏨</div><b>Hotel Receptionist</b><span>入住 · 投诉</span></button>
+      </div>
+      <div class="mission">🎯 <b>Mission:</b> Order a hot latte to go, ask whether they accept 支付宝, and say it should not be too sweet (不要太甜). Use 请问 and 谢谢 at least once.</div>
+      <div class="chat">
+        <div class="bubble ai">欢迎光临！请问您想喝点什么？<i class="py">Huānyíng guānglín! Qǐngwèn nín xiǎng hē diǎn shénme?</i></div>
+        <div class="bubble me">你好，我想喝一杯热拿铁，带走。<i class="py">Nǐ hǎo, wǒ xiǎng hē yì bēi rè nátiě, dài zǒu.</i></div>
+        <div class="bubble ai">好的，一杯热拿铁。需要加糖吗？<i class="py">Hǎo de, yì bēi rè nátiě. Xūyào jiā táng ma?</i></div>
+        <div class="sugg">
+          <button class="chip">不要太甜，谢谢</button>
+          <button class="chip">可以少加一点糖</button>
+          <button class="chip">请问可以支付宝吗？</button>
+        </div>
+        <div class="chat-input">
+          <input placeholder="Type or 🎙 speak your reply…" value="">
+          <button class="btn primary">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Heatmap -->
+  <div class="speaking-pane" id="sp-heat">
+    <div class="card tool-card">
+      <h3>Weakness Heatmap · 发音弱点图</h3>
+      <div class="sub">Every phoneme you've practised, coloured by accuracy. Tap a red cell to open its drill inspector.</div>
+      <div class="heat-wrap"><div class="heat-grid" id="heatGrid"></div></div>
+      <div class="legend">
+        <span><i style="background:rgba(63,107,87,.75)"></i>≥ 85% confident</span>
+        <span><i style="background:rgba(169,123,31,.55)"></i>60–84% building</span>
+        <span><i style="background:rgba(176,58,46,.7)"></i>&lt; 60% focus here</span>
+        <span><i style="background:var(--paper2);border:1px solid var(--line)"></i>not practised</span>
+        <span style="margin-left:auto">Selected: <b class="zh" style="color:var(--seal)">r</b> → drill: 人 热 肉 如果 · <button class="btn sm" style="margin-left:6px">🎙 Test mic</button></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 4. REVIEW ================= -->
+<section class="workspace" id="ws-review">
+  <div class="section-title"><h2 class="zh">复习</h2><span>Spaced Repetition · SM-2</span></div>
+
+  <div class="srs-toolbar">
+    <button class="btn">▢ Grammar Cloze 语法填空</button>
+    <button class="btn">🎧 Commute Mode 随身听</button>
+    <button class="btn">⚙ SRS Settings</button>
+    <button class="btn">🗂 Deck: <b>Food &amp; Drink</b> ▾</button>
+    <button class="btn">👀 Look-Alike Drills 形近字</button>
+    <div style="flex:1"></div>
+    <button class="btn">⬇ Anki (.tsv)</button>
+    <button class="btn">⬇ Pleco (.txt)</button>
+  </div>
+
+  <div class="srs-layout">
+    <div>
+      <div class="card flashcard" data-modal="m-dict-demo" title="Click to flip">
+        <button class="btn sm" style="position:absolute;top:14px;right:14px">🔊 play</button>
+        <span class="badge hsk" style="position:absolute;top:14px;left:14px">HSK 1</span>
+        <div class="char zh">咖 啡</div>
+        <div class="tap">TAP CARD TO FLIP · audio-first recall</div>
+      </div>
+      <div class="grade-row">
+        <button class="grade g1"><b>Again (1)</b><span>&lt; 1 min</span></button>
+        <button class="grade g2"><b>Hard (2)</b><span>1 day</span></button>
+        <button class="grade g3"><b>Good (3)</b><span>3 days</span></button>
+        <button class="grade g4"><b>Easy (4)</b><span>7 days</span></button>
+      </div>
+
+      <!-- completion state (hidden demo below) -->
+      <div class="card done-state" style="margin-top:18px;display:none">
+        <div class="big">🎋</div>
+        <h3 style="margin:8px 0 4px">All caught up</h3>
+        <p style="font-size:13px">No cards due. 明天见!</p>
+      </div>
+    </div>
+
+    <div class="review-side">
+      <div class="card" style="padding:18px">
+        <div style="font-size:12px;color:var(--ink3);margin-bottom:12px;letter-spacing:1px;text-transform:uppercase">Activity · last 35 days</div>
+        <div class="activity" id="actGrid"></div>
+      </div>
+      <div class="card analytics" style="padding:18px">
+        <div class="an-row"><span>Deck size</span><b>214</b></div>
+        <div class="an-row"><span>Due today</span><b style="color:var(--seal)">23</b></div>
+        <div class="an-row"><span>Avg reading speed</span><b>142 CPM</b></div>
+        <div class="an-row"><span>Retention (30d)</span><b style="color:var(--jade)">91%</b></div>
+        <div class="an-row"><span>Reviews today</span><b>47</b></div>
+      </div>
+      <div class="card" style="padding:18px">
+        <div style="font-size:12px;color:var(--ink3);margin-bottom:10px;letter-spacing:1px;text-transform:uppercase">Next up</div>
+        <div style="font-size:14px;line-height:2" class="zh">拿铁 · 蛋糕 · 服务员 · 味道 · 贵 <span style="color:var(--ink3);font-size:12px;font-family:inherit"> +18</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 5. LESSONS ================= -->
+<section class="workspace" id="ws-lessons">
+  <div class="section-title"><h2 class="zh">课程远征</h2><span>Odyssey · adaptive course map</span></div>
+
+  <div class="map-frame">
+    <svg class="map-svg" viewBox="0 0 900 480">
+      <path d="M60 400 C 160 380, 180 300, 260 290 S 400 330, 470 270 S 600 160, 690 170 S 830 110, 860 70"
+            fill="none" stroke="var(--ink3)" stroke-width="2.5" stroke-dasharray="8 7" opacity=".6"/>
+      <!-- nodes: cx cy state emoji title hsk stars -->
+      <g class="lesson-node" data-modal="m-lesson"><circle class="node-disc done" cx="60" cy="400" r="30"/><text x="60" y="410" text-anchor="middle" font-size="24">👋</text><text x="60" y="452" text-anchor="middle" font-size="12" fill="var(--ink2)" font-weight="600">Greetings</text><text x="60" y="467" text-anchor="middle" font-size="11" fill="var(--gold)">★★★</text></g>
+      <g class="lesson-node" data-modal="m-lesson"><circle class="node-disc done" cx="190" cy="330" r="30"/><text x="190" y="340" text-anchor="middle" font-size="24">🔢</text><text x="190" y="372" text-anchor="middle" font-size="12" fill="var(--ink2)" font-weight="600">Numbers</text><text x="190" y="387" text-anchor="middle" font-size="11" fill="var(--gold)">★★★</text></g>
+      <g class="lesson-node" data-modal="m-lesson"><circle class="node-disc done" cx="260" cy="290" r="30"/><text x="260" y="300" text-anchor="middle" font-size="24">👨‍👩‍👧</text><text x="260" y="332" text-anchor="middle" font-size="12" fill="var(--ink2)" font-weight="600">Family</text><text x="260" y="347" text-anchor="middle" font-size="11" fill="var(--gold)">★★☆</text></g>
+      <g class="lesson-node" data-modal="m-lesson"><circle class="node-disc open" cx="360" cy="315" r="34" stroke-width="2.5"/><text x="360" y="326" text-anchor="middle" font-size="26">🍜</text><text x="360" y="361" text-anchor="middle" font-size="12" fill="var(--seal)" font-weight="700">Food &amp; Drink</text><text x="360" y="376" text-anchor="middle" font-size="11" fill="var(--gold)">not attempted</text></g>
+      <g class="lesson-node"><circle class="node-disc locked" cx="470" cy="270" r="30"/><text x="470" y="280" text-anchor="middle" font-size="22">🔒</text><text x="470" y="312" text-anchor="middle" font-size="12" fill="var(--ink3)">Directions</text></g>
+      <g class="lesson-node"><circle class="node-disc locked" cx="560" cy="210" r="30"/><text x="560" y="220" text-anchor="middle" font-size="22">🔒</text><text x="560" y="252" text-anchor="middle" font-size="12" fill="var(--ink3)">Shopping</text></g>
+      <g class="lesson-node"><circle class="node-disc locked" cx="640" cy="175" r="30"/><text x="640" y="185" text-anchor="middle" font-size="22">🔒</text><text x="640" y="217" text-anchor="middle" font-size="12" fill="var(--ink3)">Transport</text></g>
+      <g class="lesson-node"><circle class="node-disc locked" cx="690" cy="170" r="30"/><text x="690" y="180" text-anchor="middle" font-size="22">🔒</text><text x="690" y="135" text-anchor="middle" font-size="12" fill="var(--ink3)">Boss Battle 🐉</text></g>
+      <text x="30" y="40" font-size="13" fill="var(--ink3)" letter-spacing="2">HSK 1 → 2 · UNIT 3 OF 12 · 64% COMPLETE</text>
+      <rect x="30" y="52" width="840" height="8" rx="4" fill="var(--paper2)"/>
+      <rect x="30" y="52" width="538" height="8" rx="4" fill="var(--jade)"/>
+    </svg>
+    <div class="map-legend">
+      <span><i style="background:var(--jade)"></i>Completed</span>
+      <span><i style="background:var(--card);border:2px solid var(--seal)"></i>Available now</span>
+      <span><i style="background:var(--paper2)"></i>Locked · finish the previous node</span>
+      <span style="margin-left:auto">Lesson types: 📖 Reading · 🎧 Listening · ✏️ Grammar · 🎵 Tone match · 🃏 Vocab · 🐉 Boss battle</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SETTINGS ================= -->
+<section class="workspace" id="ws-settings">
+  <div class="section-title"><h2 class="zh">设置</h2><span>Settings</span></div>
+  <div class="set-grid">
+    <div class="card set-card">
+      <h3>🎨 Appearance</h3>
+      <div class="set-row"><span>Theme<small>Ink-wash dark / rice-paper light</small></span><button class="btn sm" id="themeBtn2">☾ Dark</button></div>
+      <div class="set-row"><span>Default script<small>Applies to new stories</small></span><select><option>简体 Simplified</option><option>繁體 Traditional</option></select></div>
+      <div class="set-row"><span>Phonetic script</span><select><option>Pinyin</option><option>注音 Zhuyin</option></select></div>
+    </div>
+    <div class="card set-card">
+      <h3>🗣 Speech &amp; Audio</h3>
+      <div class="set-row"><span>Default TTS engine</span><select><option>Azure Neural</option><option>Google Cloud</option><option>System</option></select></div>
+      <div class="set-row"><span>Default voice</span><select><option>Xiaoxiao 晓晓 (F)</option><option>Yunxi 云希 (M)</option></select></div>
+      <div class="set-row"><span>Dialect</span><select><option>普通话 Standard</option><option>北京儿化</option><option>台湾华语</option></select></div>
+      <div class="set-row"><span>Playback speed default</span><input type="range" min="50" max="200" value="100" style="width:110px"></div>
+    </div>
+    <div class="card set-card">
+      <h3>🧭 Level</h3>
+      <div class="set-row"><span>Current level<small>Set by onboarding placement test</small></span><span class="badge hsk" style="font-size:12px;padding:5px 12px">HSK 2</span></div>
+      <div class="set-row"><span>Retake diagnostic<small>20-question adaptive HSK placement</small></span><button class="btn sm primary">Start Test</button></div>
+    </div>
+    <div class="card set-card">
+      <h3>💾 Data <span class="badge soft">no backend — all local</span></h3>
+      <div class="set-row"><span>Storage used<small>localStorage + IndexedDB</small></span><b>4.2 MB</b></div>
+      <div class="set-row"><span>Export everything</span><button class="btn sm">⬇ Backup .json</button></div>
+      <div class="set-row"><span>Reset progress</span><button class="btn sm" style="color:var(--seal)">Erase all data</button></div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ================= MODALS ================= -->
+
+<!-- Dictionary -->
+<div class="modal-back" id="m-dict">
+  <div class="modal">
+    <div class="modal-hd"><h3 class="zh">字典 · Dictionary</h3><button class="modal-x" data-close>✕</button></div>
+    <div class="modal-bd">
+      <div class="dict-char">啡</div>
+      <div class="dict-py">fēi · ㄈㄟ</div>
+      <div class="dict-def">Used in 咖啡 (kāfēi) — coffee. A loan character: the mouth radical 口 signals pronunciation, borrowed purely for its sound.</div>
+      <div class="dict-grid">
+        <div class="dict-item"><div class="l">HSK Level</div><div class="v"><span class="badge hsk">HSK 1</span> (as 咖啡)</div></div>
+        <div class="dict-item"><div class="l">Radical</div><div class="v zh">口 · mouth</div></div>
+        <div class="dict-item"><div class="l">Strokes</div><div class="v">8 · 丨𠃍一丨丨一一一</div></div>
+        <div class="dict-item"><div class="l">Audio</div><div class="v"><button class="btn sm dark">🔊 fēi</button> <button class="btn sm">🔊 kāfēi</button></div></div>
+      </div>
+      <div class="homophone">⚠ Homophone check: 非 fēi (“not”) sounds identical — 咖啡 is the only common word using 啡.</div>
+      <div class="dict-btns" style="margin-top:18px">
+        <button class="btn primary" data-close>＋ Add to SRS</button>
+        <button class="btn" data-modal="m-etym">🀄 Etymology 六书</button>
+        <button class="btn" data-close>👀 Confusable Hanzi</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Etymology -->
+<div class="modal-back" id="m-etym">
+  <div class="modal">
+    <div class="modal-hd"><h3 class="zh">字源 · Etymology</h3><button class="modal-x" data-close>✕</button></div>
+    <div class="modal-bd">
+      <div style="display:flex;gap:10px;margin-bottom:16px">
+        <span class="badge soft">六书 · 假借 (phonetic loan)</span><span class="badge soft">口 · mouth radical</span>
+      </div>
+      <div class="dossier" style="margin-bottom:14px">
+        <b>啡</b> carries no original meaning of its own. When coffee arrived in China in the late 1800s, writers needed a sound for the second syllable of “coffee”, so they borrowed 啡 purely for its pronunciation (fēi). The 口 mouth radical hints it belongs to speech/sound.<br><br>
+        <b>Radical decomposition:</b> 口 (mouth) + 非 fēi (phonetic component, “not”).<br><br>
+        <b>Mnemonic:</b> “Coffee is <i>not</i> (非) something you say (口) — it's something you drink.”
+      </div>
+      <div style="display:flex;gap:14px">
+        <div style="flex:1;text-align:center;border:1px dashed var(--line);border-radius:12px;padding:14px"><div class="zh" style="font-size:40px">非</div><div style="font-size:11px;color:var(--ink3);margin-top:6px">bronze-era glyph → phonetic base</div></div>
+        <div style="flex:1;text-align:center;border:1px dashed var(--line);border-radius:12px;padding:14px"><div class="zh" style="font-size:40px">啡</div><div style="font-size:11px;color:var(--ink3);margin-top:6px">modern form · 8 strokes</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Culture -->
+<div class="modal-back" id="m-culture">
+  <div class="modal" style="width:min(720px,94vw)">
+    <div class="modal-hd"><h3 class="zh">文化注 · Cultural Notes</h3><button class="modal-x" data-close>✕</button></div>
+    <div class="modal-bd" style="display:grid;grid-template-columns:230px 1fr;gap:18px">
+      <div class="culture-list">
+        <div class="culture-item sel"><div class="ci">🧧</div><div><b>Manners &amp; 您</b><span>why 你 became 您</span></div></div>
+        <div class="culture-item"><div class="ci">☕</div><div><b>Coffee culture</b><span>third-wave cafés in Beijing</span></div></div>
+        <div class="culture-item"><div class="ci">💴</div><div><b>Mobile payment</b><span>支付宝 &amp; 微信支付</span></div></div>
+        <div class="culture-item"><div class="ci">🗣️</div><div><b>儿化音</b><span>“一点儿” Beijing flavour</span></div></div>
+      </div>
+      <div class="dossier">
+        <h3 style="font-size:15.5px;margin-bottom:8px" class="zh">您 vs 你 — the polite you</h3>
+        The waiter addresses you as 您 (nín), the polite form of 你. Service workers, elders and strangers default to 您; using it signals respect and a little social distance. Replying to a barista, plain 你 is perfectly natural.<br><br>
+        <b>Tip:</b> when the story's difficulty slider drops to HSK 1, 您 is often replaced by 你 — watch for it in the grammar overlay.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Grammar Directory -->
+<div class="modal-back" id="m-grammar">
+  <div class="modal">
+    <div class="modal-hd"><h3 class="zh">语法库 · Grammar Directory</h3><button class="modal-x" data-close>✕</button></div>
+    <div class="modal-bd">
+      <input class="gd-search" value="一点" placeholder="🔍 Search 1,200+ HSK grammar patterns…">
+      <div class="gd-item"><b>有一点儿 + Adj</b><div class="f">formula: 有一点儿 + adjective — “a little bit (too) …”</div><p>咖啡<b>有一点儿贵</b>。 — The coffee is a little expensive.</p><div class="src">⛏ Mined from your library · “在北京的咖啡店”</div></div>
+      <div class="gd-item"><b>想 + Verb</b><div class="f">formula: Subject + 想 + verb — want to / would like to</div><p>我<b>想喝</b>一杯热拿铁。</p><div class="src">⛏ HSK 1 core pattern</div></div>
+      <div class="gd-item"><b>可是</b><div class="f">formula: clause 1 ，可是 clause 2 — contrast, softer than 但是</div><p>有一点儿贵，<b>可是</b>味道好极了。</p><div class="src">⛏ Mined from your library · “在北京的咖啡店”</div></div>
+      <div class="gd-item"><b>Adj + 极了</b><div class="f">formula: adjective + 极了 — extremely …</div><p>味道好<b>极了</b>！</p><div class="src">⛏ HSK 2 core pattern</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Velocity -->
+<div class="modal-back" id="m-vel">
+  <div class="modal">
+    <div class="modal-hd"><h3 class="zh">阅读速度 · Vocabulary Speed</h3><button class="modal-x" data-close>✕</button></div>
+    <div class="modal-bd">
+      <div class="vel-chart">
+        <svg viewBox="0 0 560 240" width="100%">
+          <defs><pattern id="g2" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="var(--line)"/></pattern></defs>
+          <rect width="560" height="240" fill="url(#g2)" rx="8"/>
+          <line x1="30" y1="60" x2="530" y2="60" stroke="var(--gold)" stroke-dasharray="6 5"/><text x="36" y="54" font-size="11" fill="var(--gold)">HSK 3 benchmark · 180 CPM</text>
+          <line x1="30" y1="130" x2="530" y2="130" stroke="var(--ink3)" stroke-dasharray="6 5"/><text x="36" y="124" font-size="11" fill="var(--ink3)">HSK 2 benchmark · 120 CPM</text>
+          <path d="M30 190 L90 178 L150 172 L210 158 L270 150 L330 140 L390 128 L450 122 L530 96" fill="none" stroke="var(--seal)" stroke-width="3.5"/>
+          <g fill="var(--seal)"><circle cx="150" cy="172" r="4"/><circle cx="270" cy="150" r="4"/><circle cx="390" cy="128" r="4"/><circle cx="530" cy="96" r="5"/></g>
+          <text x="470" y="86" font-size="12" fill="var(--seal)" font-weight="700">142 CPM now</text>
+        </svg>
+      </div>
+      <div class="vel-stats">
+        <div class="stat-box"><div class="n" style="color:var(--jade)">142</div><div class="l">CPM · current session</div></div>
+        <div class="stat-box"><div class="n">+18%</div><div class="l">vs 30 days ago</div></div>
+        <div class="stat-box"><div class="n">HSK 3 pace</div><div class="l">You'll cross the line in ~2 weeks</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Frequency -->
+<div class="modal-back" id="m-freq">
+  <div class="modal">
+    <div class="modal-hd"><h3 class="zh">频率覆盖 · Frequency Coverage</h3><button class="modal-x" data-close>✕</button></div>
+    <div class="modal-bd">
+      <div class="freq-pct"><b>91%</b><div style="font-size:13px;color:var(--ink3)">of the Top-500 most common Hanzi appear in this story</div></div>
+      <div style="height:10px;border-radius:6px;background:var(--paper2);overflow:hidden"><div style="width:91%;height:100%;background:var(--jade)"></div></div>
+      <div class="freq-grid" id="freqGrid"></div>
+      <div class="hint">Solid = present in story (green = Top-100, light = Top-500) · Dashed = missing from this story.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Share -->
+<div class="modal-back" id="m-share">
+  <div class="modal" style="width:min(400px,94vw)">
+    <div class="modal-hd"><h3 class="zh">分享 · Share Story</h3><button class="modal-x" data-close>✕</button></div>
+    <div class="modal-bd">
+      <div class="qr-box" id="qrBox"></div>
+      <div style="text-align:center;font-size:12.5px;color:var(--ink3);margin-bottom:18px">Scan to open this story in Moyun mobile</div>
+      <div class="share-btns">
+        <button class="btn primary">⬇ Download 在北京的咖啡店.moyun.json</button>
+        <button class="btn">📋 Copy share link</button>
+        <button class="btn">⬆ Import from file…</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Lesson preview -->
+<div class="modal-back" id="m-lesson">
+  <div class="modal">
+    <div class="modal-hd"><h3 class="zh">课程预览 · Lesson Preview</h3><button class="modal-x" data-close>✕</button></div>
+    <div class="modal-bd">
+      <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">
+        <div style="font-size:44px">🍜</div>
+        <div><h2 style="font-size:19px">Food &amp; Drink 饮食</h2><div style="font-size:12.5px;color:var(--ink3);margin-top:3px"><span class="badge hsk">HSK 2</span> · ≈ 8 minutes · 10 exercises · 🐉 mini-boss at stage 8</div></div>
+      </div>
+      <p style="font-size:14px;color:var(--ink2);line-height:1.7;margin-bottom:6px">Order confidently at a Chinese restaurant: measure words 杯 / 碗 / 个, 想 + verb, and the 一点儿 politeness softener. Unlocks <b>Directions 🧭</b> when passed.</p>
+      <div class="lesson-modal-progress">
+        <div class="lmp done"></div><div class="lmp done"></div><div class="lmp done"></div><div class="lmp done"></div><div class="lmp done"></div><div class="lmp cur"></div><div class="lmp"></div><div class="lmp"></div><div class="lmp"></div><div class="lmp"></div>
+      </div>
+      <div style="font-size:12px;color:var(--ink3);margin-bottom:18px">Stage 6/10 · next: tone-match the phrase 我要一杯咖啡</div>
+      <div style="display:flex;gap:10px"><button class="btn primary" style="flex:1;justify-content:center">▶ Start Lesson</button><button class="btn">⭐ 0/3 stars</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---- workspace nav ---- */
+document.querySelectorAll('[data-ws]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.workspace').forEach(w=>w.classList.remove('active'));
+  document.getElementById(b.dataset.ws).classList.add('active');
+  document.querySelectorAll('.navtab').forEach(t=>t.classList.toggle('active',t===b));
+  window.scrollTo({top:0});
+}));
+document.querySelectorAll('[data-ws-go]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.workspace').forEach(w=>w.classList.remove('active'));
+  document.getElementById(b.dataset.wsGo).classList.add('active');
+  document.querySelectorAll('.navtab').forEach(t=>t.classList.remove('active'));
+  window.scrollTo({top:0});
+}));
+
+/* ---- speaking sub-tabs ---- */
+document.querySelectorAll('[data-sp]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.speaking-pane').forEach(p=>p.classList.remove('active'));
+  document.getElementById(b.dataset.sp).classList.add('active');
+  document.querySelectorAll('.subtab').forEach(t=>t.classList.toggle('active',t===b));
+}));
+
+/* ---- modals ---- */
+function openModal(id){document.getElementById(id)?.classList.add('open')}
+function closeModal(m){m.classList.remove('open')}
+document.querySelectorAll('[data-modal]').forEach(b=>b.addEventListener('click',e=>{openModal(b.dataset.modal)}));
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeModal(b.closest('.modal-back'))));
+document.querySelectorAll('.modal-back').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m)}));
+
+/* ---- character click → dictionary ---- */
+document.querySelectorAll('.story-text ruby').forEach(r=>r.addEventListener('click',e=>{e.stopPropagation();openModal('m-dict')}));
+document.querySelector('.cloze').addEventListener('click',function(){this.textContent='咖';this.style.borderStyle='solid';this.style.background='rgba(63,107,87,.1)';this.style.color='var(--jade)';});
+
+/* ---- theme ---- */
+const themeBtns=[document.getElementById('themeBtn'),document.getElementById('themeBtn2')];
+function toggleTheme(){
+  const d=document.body.dataset.theme==='dark';
+  document.body.dataset.theme=d?'light':'dark';
+  themeBtns[0].textContent=d?'☾':'☀';
+  themeBtns[1].textContent=d?'☾ Dark':'☀ Light';
+}
+themeBtns.forEach(b=>b&&b.addEventListener('click',toggleTheme));
+
+/* ---- vertical & focus ---- */
+document.getElementById('vertBtn').addEventListener('click',function(){
+  document.getElementById('storyText').classList.toggle('vertical');
+  this.classList.toggle('on');
+});
+document.getElementById('focusBtn').addEventListener('click',()=>document.body.classList.toggle('focus'));
+
+/* ---- tone pair grid ---- */
+const pairs=[
+ ['fēijī 飞机','Zhōngguó 中国','gōngzuò 工作','gāoxìng 高兴','bēizi 杯子'],
+ ['míngtiān 明天','tóngxué 同学','píjiǔ 啤酒','yánsè 颜色','huílai 回来'],
+ ['lǎoshī 老师','yǔyán 语言','mǎmǎhūhū 马马虎虎','lǐwù 礼物','xǐhuan 喜欢'],
+ ['dìtú 地图','jièshào 介绍','hànyǔ 汉语','diànshì 电视','piàoliang 漂亮'],
+ ['bēizi 杯子','péngyou 朋友','yìsi 意思','kuàizi 筷子','zhuōzi 桌子']];
+const pg=document.getElementById('pairGrid');
+let h='<div class="hd"></div>'+['+ 1st','+ 2nd','+ 3rd','+ 4th','+ 轻声'].map(x=>`<div class="hd">${x}</div>`).join('');
+const rowLabels=['1st','2nd','3rd','4th','轻声'];
+pairs.forEach((row,i)=>{
+  h+=`<div class="hd">${rowLabels[i]} +</div>`;
+  row.forEach((w,j)=>{
+    const sandhi=(i===2&&j===2)?' sandhi':'';
+    const [py,han]=w.split(' ');
+    h+=`<button class="pair-cell${sandhi}"><b class="zh">${han}</b><span>${py}</span></button>`;
+  });
+});
+pg.innerHTML=h;
+
+/* ---- waveforms ---- */
+function waves(id,n,color){
+  const el=document.getElementById(id);let s='';
+  for(let i=0;i<n;i++){const hgt=8+Math.round(38*Math.abs(Math.sin(i*.35)+.4*Math.sin(i*1.3)));s+=`<i style="height:${hgt}%"></i>`;}
+  el.innerHTML=s;
+}
+waves('waveNative',56);waves('waveUser',56);
+
+/* ---- activity heatmap (35 days) ---- */
+const act=document.getElementById('actGrid');const data=[2,3,1,0,4,2,3,3,1,0,2,5,4,3,2,0,1,3,4,2,3,1,0,2,4,3,2,1,0,3,2,4,1,2,3];
+let ah='';data.forEach((v,i)=>{
+  const cls=v===0?'':v<2?'a1':v<4?'a2':'a3';
+  ah+=`<div class="act-cell ${cls}${i===34?' today':''}" title="${v} reviews"></div>`;
+});
+act.innerHTML=ah;
+
+/* ---- weakness heatmap ---- */
+const initials=['b','p','m','f','d','t','n','l','g','k','h','j','q','x','zh','ch','sh','r','z','c','s','y','w'];
+const finals=['a','o','e','i','u','ü','ai','ei','ao','ou','an','en','ang','eng','ong','er','ia','ie','iao','iu','ian','in','iang','ing','iong','ua','uo','uai','ui','uan','un','uang','ueng','üe','üan','ün'];
+const tones=['1st','2nd','3rd','4th','轻声'];
+const state=s=>s==='g'?'hg':s==='y'?'hy':s==='r'?'hr':'hn';
+let hh='';
+initials.forEach((p,i)=>{
+  const s=i<4?'g':i<10?'y':(p==='r'||p==='z'||p==='c')?'r':'g';
+  hh+=`<div class="heat-cell ${state(s)}" title="initial ${p}">${p}</div>`;
+});
+finals.forEach((p,i)=>{
+  const s=i<6?'g':i<20?'y':(p==='ün'||p==='uang'||p==='ong')?'r':'g';
+  hh+=`<div class="heat-cell ${state(s)}" title="final ${p}">${p}</div>`;
+});
+tones.forEach((p,i)=>{
+  const s=i===0?'g':i===1?'y':i===2?'r':'g';
+  hh+=`<div class="heat-cell ${state(s)}" title="tone ${p}">${p}</div>`;
+});
+document.getElementById('heatGrid').innerHTML=hh;
+
+/* ---- frequency grid ---- */
+const inStory='的一是不了在人有我他这中大来上国个到说们为子和你地出道也时年得就那要下以生会自着去之作用过动对开起把';
+const missing='而二工么于力又才人家政法种定起朋世永';
+let fh='';
+for(const ch of inStory)fh+=`<div class="freq-cell">${ch}</div>`;
+for(const ch of missing)fh+=`<div class="freq-cell miss">${ch}</div>`;
+document.getElementById('freqGrid').innerHTML=fh;
+
+/* ---- fake QR ---- */
+(function(){
+  const box=document.getElementById('qrBox');let s='';
+  let seed=42;const rnd=()=>{seed=(seed*9301+49297)%233280;return seed/233280};
+  for(let y=0;y<17;y++)for(let x=0;x<17;x++){
+    const corner=(x<5&&y<5)||(x>11&&y<5)||(x<5&&y>11);
+    const on=corner?((x===0||x===4||y===0||y===4)||(x===2&&y===2)||(x===13&&y===2)||(x===2&&y===13)||((x>11||x<5)&&(y>11||y<5)&&((x%4===0&&y%4===0)))):rnd()>.5;
+    s+=`<i class="${on?'':'w'}"></i>`;
+  }
+  box.innerHTML=s;
+})();
+
+/* ---- grammar underline tooltip demo ---- */
+document.querySelectorAll('.gr').forEach(g=>g.addEventListener('click',e=>{e.stopPropagation();openModal('m-grammar')}));
+</script>
+</body>
+</html>

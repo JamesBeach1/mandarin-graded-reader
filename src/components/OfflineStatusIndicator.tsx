@@ -20,21 +20,9 @@ export const OfflineStatusIndicator: React.FC = () => {
 
   return (
     <div
+      className="header-status"
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        fontSize: '11px',
-        padding: '5px 9px',
-        borderRadius: 'var(--radius-sm)',
-        background: 'var(--bg-surface)',
-        color: isOnline ? 'var(--accent-bamboo)' : 'var(--accent-seal)',
-        border: '1px solid var(--border-subtle)',
-        fontWeight: 500,
-        textTransform: 'uppercase',
-        letterSpacing: '0.04em',
-        userSelect: 'none',
-        marginRight: '6px'
+        color: isOnline ? 'var(--accent-bamboo)' : 'var(--accent-seal)'
       }}
       title={isOnline ? "Online: Cloud neural speech & AI models accessible" : "Offline: Zero-backend local storage & dictionary active"}
     >
@@ -43,11 +31,13 @@ export const OfflineStatusIndicator: React.FC = () => {
           width: '6px',
           height: '6px',
           borderRadius: '50%',
-          backgroundColor: isOnline ? 'var(--accent-bamboo)' : 'var(--accent-seal)'
+          backgroundColor: isOnline ? 'var(--accent-bamboo)' : 'var(--accent-seal)',
+          display: 'inline-block'
         }}
       />
-      {isOnline ? 'Online' : 'Offline'}
+      <span className="header-status-text">
+        {isOnline ? 'Online' : 'Offline'}
+      </span>
     </div>
   );
 };
-

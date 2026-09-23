@@ -68,8 +68,6 @@ export const AudioFirstFlashcard: React.FC<AudioFirstFlashcardProps> = ({
           <div style={{
             fontSize: '11px',
             fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
             color: 'var(--accent-gold)',
             marginBottom: '6px',
             display: 'flex',
@@ -143,7 +141,7 @@ export const AudioFirstFlashcard: React.FC<AudioFirstFlashcardProps> = ({
               textAlign: 'left'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)' }}>
                   📖 Example Sentence
                 </span>
                 <button
@@ -176,35 +174,59 @@ export const AudioFirstFlashcard: React.FC<AudioFirstFlashcardProps> = ({
           )}
 
           <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '18px' }}>
-            <p style={{ fontSize: '12px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '12px' }}>
-              Self-Grade Recall Quality (SM-2):
+            <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '12px' }}>
+              Self-Grade Recall Quality:
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+            <div className="srs-grading-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
               <button
                 onClick={() => onGrade(1)}
                 className="btn"
-                style={{ backgroundColor: 'var(--accent-seal)', color: '#E5E5E5', border: '1px solid var(--accent-seal)' }}
+                style={{
+                  backgroundColor: 'var(--accent-seal)',
+                  color: '#FFFFFF',
+                  borderColor: 'var(--accent-seal)',
+                  borderBottom: '3px solid #D93838',
+                  fontWeight: 700
+                }}
               >
-                1: Fail
+                1: Again
               </button>
               <button
                 onClick={() => onGrade(2)}
                 className="btn"
-                style={{ backgroundColor: 'var(--accent-gold)', color: '#121212', border: '1px solid var(--accent-gold)' }}
+                style={{
+                  backgroundColor: 'var(--accent-gold)',
+                  color: '#FFFFFF',
+                  borderColor: 'var(--accent-gold)',
+                  borderBottom: '3px solid #D97706',
+                  fontWeight: 700
+                }}
               >
                 2: Hard
               </button>
               <button
                 onClick={() => onGrade(3)}
                 className="btn"
-                style={{ backgroundColor: 'var(--accent-bamboo)', color: '#E5E5E5', border: '1px solid var(--accent-bamboo)' }}
+                style={{
+                  backgroundColor: 'var(--accent-bamboo)',
+                  color: '#FFFFFF',
+                  borderColor: 'var(--accent-bamboo)',
+                  borderBottom: '3px solid #46A302',
+                  fontWeight: 700
+                }}
               >
                 3: Good
               </button>
               <button
                 onClick={() => onGrade(4)}
                 className="btn"
-                style={{ backgroundColor: '#354E3C', color: '#E5E5E5', border: '1px solid #354E3C' }}
+                style={{
+                  backgroundColor: 'var(--accent-sky)',
+                  color: '#FFFFFF',
+                  borderColor: 'var(--accent-sky)',
+                  borderBottom: '3px solid #1899D6',
+                  fontWeight: 700
+                }}
               >
                 4: Easy
               </button>

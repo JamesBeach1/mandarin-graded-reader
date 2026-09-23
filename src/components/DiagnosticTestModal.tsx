@@ -238,13 +238,13 @@ export const DiagnosticTestModal: React.FC<DiagnosticTestModalProps> = ({
   return (
     <div className="modal-backdrop">
       <div className="modal-dialog">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px', marginBottom: '18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '14px', marginBottom: '18px' }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: '18px', fontFamily: 'var(--font-serif-zh)', color: 'var(--text-main)' }}>
-              🎯 Adaptive Mandarin Diagnostic Placement Test
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, fontFamily: 'var(--font-zh)', color: 'var(--text-primary)' }}>
+              🎯 Diagnostic Placement Test
             </h3>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              Questions {currentIdx + 1} of {DIAGNOSTIC_QUESTIONS.length}
+            <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+              Question {currentIdx + 1} of {DIAGNOSTIC_QUESTIONS.length}
             </span>
           </div>
           <button onClick={onClose} className="btn btn-secondary" style={{ padding: '6px 10px' }}>
@@ -255,11 +255,11 @@ export const DiagnosticTestModal: React.FC<DiagnosticTestModalProps> = ({
         {!isFinished ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {/* Progress bar */}
-            <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--bg-panel)', borderRadius: '3px', overflow: 'hidden' }}>
-              <div style={{ width: `${((currentIdx + 1) / DIAGNOSTIC_QUESTIONS.length) * 100}%`, height: '100%', backgroundColor: 'var(--accent-indigo)', transition: 'width 0.3s ease' }} />
+            <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--bg-base)', borderRadius: 'var(--radius-pill)', overflow: 'hidden' }}>
+              <div style={{ width: `${((currentIdx + 1) / DIAGNOSTIC_QUESTIONS.length) * 100}%`, height: '100%', backgroundColor: 'var(--accent-bamboo)', transition: 'width 0.3s ease', borderRadius: 'var(--radius-pill)' }} />
             </div>
 
-            <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--text-main)' }}>
+            <div style={{ fontSize: '17px', fontWeight: 600, color: 'var(--text-primary)' }}>
               {currentQ.question}
             </div>
 
@@ -275,11 +275,14 @@ export const DiagnosticTestModal: React.FC<DiagnosticTestModalProps> = ({
                       justifyContent: 'flex-start',
                       padding: '14px 18px',
                       textAlign: 'left',
-                      borderColor: isSelected ? 'var(--accent-indigo)' : undefined,
-                      backgroundColor: isSelected ? 'rgba(29, 60, 69, 0.08)' : undefined
+                      borderRadius: 'var(--radius-md)',
+                      borderColor: isSelected ? 'var(--accent-bamboo)' : undefined,
+                      borderBottomColor: isSelected ? '#46A302' : undefined,
+                      backgroundColor: isSelected ? 'rgba(88, 204, 2, 0.12)' : undefined,
+                      fontWeight: isSelected ? 700 : 500
                     }}
                   >
-                    <span style={{ width: '22px', fontWeight: 'bold', color: isSelected ? 'var(--accent-indigo)' : 'var(--text-muted)' }}>
+                    <span style={{ width: '24px', fontWeight: 'bold', color: isSelected ? 'var(--accent-bamboo)' : 'var(--text-muted)' }}>
                       {String.fromCharCode(65 + idx)}.
                     </span>
                     <span style={{ fontSize: '15px' }}>{opt}</span>
@@ -300,30 +303,30 @@ export const DiagnosticTestModal: React.FC<DiagnosticTestModalProps> = ({
           </div>
         ) : (
           <div style={{ textAlign: 'center', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-            <div style={{ width: '72px', height: '72px', borderRadius: '50%', backgroundColor: 'rgba(123, 141, 98, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-bamboo)' }}>
+            <div style={{ width: '72px', height: '72px', borderRadius: '50%', backgroundColor: 'rgba(88, 204, 2, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-bamboo)' }}>
               <Award size={36} />
             </div>
 
-            <h3 style={{ margin: 0, fontSize: '24px', fontFamily: 'var(--font-serif-zh)', color: 'var(--text-main)' }}>
+            <h3 style={{ margin: 0, fontSize: '24px', fontWeight: 700, fontFamily: 'var(--font-zh)', color: 'var(--text-primary)' }}>
               Diagnostic Complete!
             </h3>
 
-            <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-muted)' }}>
+            <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)' }}>
               You scored <strong>{correctCount} / {DIAGNOSTIC_QUESTIONS.length} ({percentage}%)</strong>
             </p>
 
             <div style={{
-              padding: '16px 24px',
+              padding: '18px 24px',
               backgroundColor: 'var(--bg-panel)',
-              borderRadius: 'var(--radius-md)',
+              borderRadius: 'var(--radius-lg)',
               border: '1px solid var(--border-subtle)',
               width: '100%',
               maxWidth: '380px'
             }}>
-              <span style={{ fontSize: '12px', textTransform: 'uppercase', fontWeight: 'bold', color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>
                 Recommended Starting Placement:
               </span>
-              <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--accent-cinnabar)', margin: '4px 0' }}>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--accent-seal)', margin: '4px 0' }}>
                 HSK {recommendedLevel}
               </div>
               <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>

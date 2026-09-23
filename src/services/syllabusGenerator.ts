@@ -6,6 +6,8 @@
 
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import type { Course, Chapter, CourseNode, BiomeType } from '../types/Course';
+import { DEFAULT_GEMINI_MODEL } from './gemini';
+import { STORAGE_KEYS } from './storage';
 
 export interface SyllabusGenerationParams {
   goal: string;
@@ -161,24 +163,35 @@ CRITICAL CREATIVE & NARRATIVE MANDATES:
           { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
           { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
         ];
-        try {
-          const model = genAI.getGenerativeModel({
-            model: 'gemini-3.1-flash-lite',
-            safetySettings,
-            generationConfig: { responseMimeType: 'application/json' }
-          });
-          const result = await model.generateContent(prompt);
-          return result.response.text();
-        } catch (e1) {
-          console.warn('gemini-3.1-flash-lite failed, trying gemini-2.5-flash fallback:', e1);
-          const model = genAI.getGenerativeModel({
-            model: 'gemini-2.5-flash',
-            safetySettings,
-            generationConfig: { responseMimeType: 'application/json' }
-          });
-          const result = await model.generateContent(prompt);
-          return result.response.text();
+        const preferredModel = localStorage.getItem(STORAGE_KEYS.GEMINI_MODEL) || DEFAULT_GEMINI_MODEL;
+        const modelsToTry = [
+          preferredModel,
+          'gemini-2.5-flash',
+          'gemini-2.5-flash-lite',
+          'gemini-3.8-flash',
+          'gemini-3.5-flash',
+          'gemini-3.1-flash-lite',
+          'gemini-2.5-pro',
+          'gemini-2.0-flash',
+          'gemini-1.5-flash'
+        ].filter((m, idx, arr) => Boolean(m) && arr.indexOf(m) === idx);
+
+        let lastErr: unknown = null;
+        for (const modelId of modelsToTry) {
+          try {
+            const model = genAI.getGenerativeModel({
+              model: modelId,
+              safetySettings,
+              generationConfig: { responseMimeType: 'application/json' }
+            });
+            const result = await model.generateContent(prompt);
+            return result.response.text();
+          } catch (err) {
+            console.warn(`Syllabus generation attempt with ${modelId} failed:`, err);
+            lastErr = err;
+          }
         }
+        throw lastErr || new Error('All syllabus generation models failed');
       };
 
       const timeoutPromise = new Promise<never>((_, reject) =>

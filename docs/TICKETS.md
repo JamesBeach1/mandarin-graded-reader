@@ -1,9 +1,9 @@
 # Moyun (墨韵) — Centralized Issue & Ticket Registry
 
 **Document Status:** Canonical Single Source of Truth for Issues & Feature Specifications  
-**Last Updated:** 2026-09-21  
+**Last Updated:** 2026-09-23  
 **Repository:** `mandarin-graded-reader`  
-**Total Managed Tickets:** 63 (49 Completed, 14 Backlog)
+**Total Managed Tickets:** 63 (54 Completed, 9 Backlog)
 
 ---
 
@@ -12,9 +12,9 @@
 ### Status Summary
 | Status | Indicator | Count | Percentage | Definition |
 |---|:---:|:---:|:---:|---|
-| **Completed** | 🟢 | 49 | 77.8% | Verified and shipped in active codebase. |
+| **Completed** | 🟢 | 54 | 85.7% | Verified and shipped in active codebase. |
 | **In Progress** | 🟡 | 0 | 0.0% | Actively being engineered in the current sprint. |
-| **Backlog** | ⚪ | 14 | 22.2% | Fully specified; pending prioritization and grooming. |
+| **Backlog** | ⚪ | 9 | 14.3% | Fully specified; pending prioritization and grooming. |
 | **Blocked / Deferred** | 🔴 | 0 | 0.0% | External dependencies or architectural blockers. |
 
 ### Domain Breakdown
@@ -24,8 +24,8 @@
 | **TRC** | Typography, Reading & Comprehension | 10 | 8 | 2 |
 | **ALS** | Audio, Listening & Speaking | 10 | 8 | 2 |
 | **SRS** | Spaced Repetition (SRS) & Vocabulary | 10 | 9 | 1 |
-| **GTU** | Gamification, Tracking & UX | 10 | 6 | 4 |
-| **AIM** | Advanced AI & Input Methods | 10 | 5 | 5 |
+| **GTU** | Gamification, Tracking & UX | 10 | 7 | 3 |
+| **AIM** | Advanced AI & Input Methods | 10 | 9 | 1 |
 
 ---
 
@@ -77,7 +77,7 @@
 | `SRS-010` | SRS | User-Tweakable SRS Intervals (SM-2 Customizer) | Low | 2 | 🟢 Completed | Customizable graduation steps, ease floors, and multipliers with preset profiles. |
 | `GTU-001` | GTU | Multi-Device Synchronization (CRDT / P2P) | High | 13 | ⚪ Backlog | Conflict-free E2EE synchronization of IndexedDB across mobile & desktop. |
 | `GTU-002` | GTU | Dynamic Reading Speed Tracker & Analytics (CPM) | High | 3 | 🟢 Completed | Real-time CPM tracking, historical velocity sessions, and HSK benchmark tiers. |
-| `GTU-003` | GTU | Opt-in Community Leaderboards | Low | 5 | ⚪ Backlog | Anonymous weekly leaderboard ranking reading volume and reviews. |
+| `GTU-003` | GTU | Opt-in Community Leaderboards | Low | 5 | 🟢 Completed | Anonymous weekly leaderboard ranking reading volume and reviews. |
 | `GTU-004` | GTU | Daily Reading Streaks & Calendar Heatmap | High | 2 | 🟢 Completed | Local timezone streak counter, flame badge, best streak, and 35-day activity grid. |
 | `GTU-005` | GTU | Peer-to-Peer Story Sharing (JSON / QR Import) | Medium | 5 | 🟢 Completed | Export stories as `.moyun.json` or scan QR codes for instant mobile load. |
 | `GTU-006` | GTU | Tutor / Classroom Dashboard | Low | 13 | ⚪ Backlog | Teacher assignments, student progress tracking, and cohort blind spots. |
@@ -85,16 +85,16 @@
 | `GTU-008` | GTU | Export to PDF & Print Mode Optimization | High | 2 | 🟢 Completed | Clean paper stylesheets, printable header, vocabulary glossary appendix, and print button. |
 | `GTU-009` | GTU | Full-Screen Focus Mode Drawer | High | 2 | 🟢 Completed | Zero-distraction reading layout with sticky HUD, font scale, and Esc key exit. |
 | `GTU-010` | GTU | Memory Palace Integrations (Method of Loci) | Low | 13 | ⚪ Backlog | Spatial memory mapping of characters to user-defined physical rooms. |
-| `AIM-001` | AIM | AI Grader for Free Writing & Composition | High | 5 | ⚪ Backlog | Line-by-line grammar, particle, and collocation feedback on essays. |
+| `AIM-001` | AIM | AI Grader for Free Writing & Composition | High | 5 | 🟢 Completed | Line-by-line grammar, particle, and collocation feedback on essays. |
 | `AIM-002` | AIM | Handwriting Recognition Input (Drawing Hanzi) | High | 8 | ⚪ Backlog | Canvas stroke drawing tool to search characters without knowing Pinyin. |
 | `AIM-003` | AIM | Pinyin Typing Practice & IME Drills | Medium | 5 | 🟢 Completed | Speed typing drills simulating standard QWERTY Chinese IME candidate selection. |
 | `AIM-004` | AIM | Vocabulary Difficulty Slider (Real-Time Simplifier) | High | 5 | 🟢 Completed | In-place dynamic synonym swapping scaling text difficulty up and down without LLM latency. |
-| `AIM-005` | AIM | Text-to-Image Generation for Stories | Low | 5 | ⚪ Backlog | Ink-wash watercolor illustration generation for custom story passages. |
+| `AIM-005` | AIM | Text-to-Image Generation for Stories | Low | 5 | 🟢 Completed | Ink-wash watercolor illustration generation for custom story passages. |
 | `AIM-006` | AIM | Grammar Pattern Directory with Personal Corpus | High | 5 | 🟢 Completed | Searchable HSK grammar index displaying formula templates and sentences mined from user library. |
 | `AIM-007` | AIM | Automated Dynamic HSK Placement Test | High | 5 | 🟢 Completed | 20-question adaptive diagnostic calibrating starting level across HSK 1–6. |
 | `AIM-008` | AIM | Subtitles Export (.srt / .vtt) | Medium | 2 | 🟢 Completed | Export synchronized subtitle files (.srt/.vtt) with Chinese, Pinyin, or bilingual lines. |
-| `AIM-009` | AIM | Offline Audio Pre-caching (Neural Audio Packs) | Medium | 8 | ⚪ Backlog | Download and cache studio neural audio for entire stories for flight use. |
-| `AIM-010` | AIM | Integrated Stroke Order Numbered Typography | Medium | 5 | ⚪ Backlog | Render numbered stroke sequences directly within character fonts. |
+| `AIM-009` | AIM | Offline Audio Pre-caching (Neural Audio Packs) | Medium | 8 | 🟢 Completed | Download and cache studio neural audio for entire stories for flight use. |
+| `AIM-010` | AIM | Integrated Stroke Order Numbered Typography | Medium | 5 | 🟢 Completed | Render numbered stroke sequences directly within character fonts. |
 
 ---
 
@@ -514,11 +514,13 @@
   1. Visualizes fluency acceleration with benchmark comparison lines.
 
 #### `GTU-003`: Opt-in Community Leaderboards
-* **Status:** ⚪ `Backlog` | **Priority:** Low | **Points:** 5
+* **Status:** 🟢 `Completed` | **Priority:** Low | **Points:** 5
 * **Requirements:**
-  * Anonymous weekly character reading count comparisons (100% opt-in).
+  * Anonymous weekly character reading count comparisons (100% opt-in) in `src/services/leaderboardStore.ts` and `<CommunityLeaderboardModal>`.
 * **Acceptance Criteria:**
-  1. Weekly reset; zero personal information required.
+  1. Weekly reset timer (Sunday midnight); zero personal information required.
+  2. Opt-in toggle with customizable anonymous calligraphic pen name and emoji avatar.
+  3. Displays user's weekly characters read, reviews completed, and streak ranking among anonymous HSK cohort peers.
 
 #### `GTU-004`: Daily Reading Streaks & Calendar Heatmap
 * **Status:** 🟢 `Completed` | **Priority:** High | **Points:** 2
@@ -528,11 +530,11 @@
   1. Increments streak when user reads >= 100 characters or completes 10 reviews.
 
 #### `GTU-005`: Peer-to-Peer Story Sharing (JSON / QR Import)
-* **Status:** ⚪ `Backlog` | **Priority:** Medium | **Points:** 5
+* **Status:** 🟢 `Completed` | **Priority:** Medium | **Points:** 5
 * **Requirements:**
-  * Bundle story + tokens + custom overrides into `.moyun.json` or scannable QR code.
+  * Bundle story + tokens + custom overrides into `.moyun.json` or scannable QR code (`src/utils/storyShare.ts` and `<StoryShareModal>`).
 * **Acceptance Criteria:**
-  1. Instant import from mobile camera scan or URL parameter.
+  1. Instant import from mobile camera scan, file upload, or drag-and-drop.
 
 #### `GTU-006`: Tutor / Classroom Dashboard
 * **Status:** ⚪ `Backlog` | **Priority:** Low | **Points:** 13
@@ -576,11 +578,12 @@
 ### [AIM] Advanced AI & Input Methods
 
 #### `AIM-001`: AI Grader for Free Writing & Composition
-* **Status:** ⚪ `Backlog` | **Priority:** High | **Points:** 5
+* **Status:** 🟢 `Completed` | **Priority:** High | **Points:** 5
 * **Requirements:**
-  * AI analysis of user-typed essays evaluating grammar, particle placement, and collocations.
+  * AI analysis of user-typed essays evaluating grammar, particle placement, and collocations in `src/utils/writingGraderEngine.ts` and `<WritingGraderModal>`.
 * **Acceptance Criteria:**
-  1. Diff-highlighted corrections with grammatical explanations.
+  1. Real-time offline heuristic syntactic checking for `的/得/地`, aspect markers `了/着/过`, and measure word pairings, with optional Gemini 1.5 Flash linguistic grading.
+  2. Diff-highlighted corrections with grammatical explanations, HSK estimation, and 1-click loading into Reading Theater.
 
 #### `AIM-002`: Handwriting Recognition Input (Drawing Hanzi)
 * **Status:** ⚪ `Backlog` | **Priority:** High | **Points:** 8
@@ -608,11 +611,12 @@
   2. Interactive HSK 1–6 slider in Reading Theater Actions menu with instant word swapping, swap counts, `.token-substituted` visual highlights, and 1-click reversion.
 
 #### `AIM-005`: Text-to-Image Generation for Stories
-* **Status:** ⚪ `Backlog` | **Priority:** Low | **Points:** 5
+* **Status:** 🟢 `Completed` | **Priority:** Low | **Points:** 5
 * **Requirements:**
-  * Synthesizes traditional Chinese ink wash / watercolor illustrations matching story plot.
+  * Procedural Chinese ink wash / watercolor landscape painting generator (`src/utils/inkWashGenerator.ts` and `<StoryIllustration>`).
 * **Acceptance Criteria:**
-  1. Seamless header art matching Moyun's editorial aesthetic.
+  1. Seamless editorial header art matching Moyun's ink-wash aesthetic with mountain layers, mist, solitary boat, crimson sun, and seal watermark.
+  2. Regenerate (重画) and toggle visibility controls directly inside Reading Theater.
 
 #### `AIM-006`: Grammar Pattern Directory with Personal Corpus
 * **Status:** 🟢 `Completed` | **Priority:** High | **Points:** 5
@@ -639,15 +643,17 @@
   1. Valid standard subtitle files with Chinese, Pinyin, or dual English lines.
 
 #### `AIM-009`: Offline Audio Pre-caching (Neural Audio Packs)
-* **Status:** ⚪ `Backlog` | **Priority:** Medium | **Points:** 8
+* **Status:** 🟢 `Completed` | **Priority:** Medium | **Points:** 8
 * **Requirements:**
-  * Pre-generates and caches studio neural audio clips in IndexedDB/CacheStorage for offline travel.
+  * Pre-generates and caches studio neural audio clips in IndexedDB for 100% offline travel (`src/services/audioCacheService.ts` and `<AudioPrecacheModal>`).
 * **Acceptance Criteria:**
-  1. Full studio audio playback in 100% airplane mode.
+  1. Full studio audio playback in 100% airplane mode with offline cache verification.
+  2. Progress bar downloading sentence audio clips with 1-click Pre-cache button in Reading Theater.
 
 #### `AIM-010`: Integrated Stroke Order Numbered Typography
-* **Status:** ⚪ `Backlog` | **Priority:** Medium | **Points:** 5
+* **Status:** 🟢 `Completed` | **Priority:** Medium | **Points:** 5
 * **Requirements:**
-  * Stroke-order font overlaying sequence numbers on character strokes during reading.
+  * Stroke-order font overlaying sequence numbers on character strokes during reading (`src/utils/strokeOrderData.ts` and `<StrokeOrderModal>`).
 * **Acceptance Criteria:**
-  1. Displays numbered stroke paths without disrupting ruby alignment or line spacing.
+  1. Displays numbered stroke paths on traditional calligraphic rice-grid (米字格) canvas with animated playback.
+  2. Step-by-step stroke breakdown, stroke count, and 7 standard stroke order rules (笔顺基本法则) accessible directly from dictionary tooltips and reading theater.

@@ -77,21 +77,19 @@ export const ReadingWorkspace: React.FC<ReadingWorkspaceProps> = ({
         </div>
 
         <form onSubmit={onGenerateStory} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <div className="story-generator-form-row">
             <input
               type="text"
               value={storyIdea}
               onChange={(e) => setStoryIdea(e.target.value)}
               placeholder="e.g. A tourist orders tea in Chengdu, or a dialogue about weekend plans..."
-              className="form-input"
-              style={{ flex: 2, minWidth: '240px' }}
+              className="form-input story-generator-input"
               required
             />
             <select
               value={hskLevel}
               onChange={(e) => setHskLevel(e.target.value)}
-              className="form-select"
-              style={{ flex: 1, minWidth: '160px' }}
+              className="form-select story-generator-select"
             >
               <option value="1">HSK 1 - Beginner (150 words)</option>
               <option value="2">HSK 2 - Elementary (300 words)</option>
@@ -102,9 +100,8 @@ export const ReadingWorkspace: React.FC<ReadingWorkspaceProps> = ({
             </select>
             <button
               type="submit"
-              className="btn btn-primary"
+              className="btn btn-primary story-generator-btn"
               disabled={loading || !apiKey}
-              style={{ minWidth: '180px' }}
             >
               <Sparkles size={14} />
               {loading ? 'Writing...' : 'Write Graded Story'}
@@ -146,7 +143,7 @@ export const ReadingWorkspace: React.FC<ReadingWorkspaceProps> = ({
             </h3>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="story-library-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
               onClick={() => setShowImportModal(true)}
               className="btn btn-secondary"
@@ -156,7 +153,7 @@ export const ReadingWorkspace: React.FC<ReadingWorkspaceProps> = ({
               <Upload size={13} /> Import .moyun.json
             </button>
 
-            <div style={{ position: 'relative', width: '240px' }}>
+            <div className="story-library-search-wrapper" style={{ position: 'relative', width: '240px' }}>
               <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: 'var(--text-muted)' }} />
               <input
                 type="text"
@@ -175,7 +172,7 @@ export const ReadingWorkspace: React.FC<ReadingWorkspaceProps> = ({
             No saved stories found. Click "Save" in the Reading Theater to store stories in local offline storage.
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+          <div className="story-library-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
             {filteredStories.map(story => (
               <div
                 key={story.id}

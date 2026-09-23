@@ -10,37 +10,40 @@ import { addCard, getDueCards, getAllCards, updateCard, type Flashcard } from '.
 import { tokenizeStory } from './utils/tokenizer';
 import { saveStory as dbSaveStory, deleteStory as dbDeleteStory, getSavedStories, type SavedStory } from './services/libraryStore';
 import { saveOverride, deleteOverride, getOverridesMap } from './services/dictionaryStore';
-import { generateLesson } from './services/gemini';
+import { generateLesson, generateGeminiText, DEFAULT_GEMINI_MODEL } from './services/gemini';
 import type { Lesson } from './types/Lesson';
 
-// Sleek Modern 5 Workspaces
+// 5 Sleek Modular Workspaces
 import { ReadingWorkspace } from './components/ReadingWorkspace';
 import { SpeakingWorkspace } from './components/SpeakingWorkspace';
 import { ImportMediaWorkspace } from './components/ImportMediaWorkspace';
 import { ReviewWorkspace } from './components/ReviewWorkspace';
 import { LessonWorkspace } from './components/LessonWorkspace';
 
-// Aux Modals & Services
+// Aux Modals & Standardized Components
 import { DiagnosticTestModal } from './components/DiagnosticTestModal';
 import { OfflineStatusIndicator } from './components/OfflineStatusIndicator';
-import { RadicalDecomposition } from './components/RadicalDecomposition';
+import { ConfusableHanziModal } from './components/ConfusableHanziModal';
+import { EtymologyModal } from './components/EtymologyModal';
+import { WritingGraderModal } from './components/WritingGraderModal';
+import { CommunityLeaderboardModal } from './components/CommunityLeaderboardModal';
+import { StrokeOrderModal } from './components/StrokeOrderModal';
+import { SettingsModal } from './components/SettingsModal';
+import { CharacterTooltip, type TooltipState } from './components/CharacterTooltip';
+import { DictionaryOverrideModal } from './components/DictionaryOverrideModal';
+
+// Utilities & Services
 import { applyTheme, getStoredTheme } from './services/themeEngine';
-import { exportStateBundle, importStateBundle } from './services/stateHydration';
 import { ReadingAnalytics, type ReadingSpeedRecord } from './services/readingAnalytics';
 import { AzureSpeechService, type TtsEngine, type NeuralVoice, type VoiceOption } from './services/azureSpeech';
-import { getTraditionalVariant } from './utils/scriptConverter';
-import { checkHomophone } from './utils/homophoneDetector';
-import { getConfusableCluster } from './utils/confusableHanzi';
-import { ConfusableHanziModal } from './components/ConfusableHanziModal';
-import { pinyinToZhuyin } from './utils/zhuyinConverter';
-import { getEtymology } from './utils/etymologyDatabase';
-import { EtymologyModal } from './components/EtymologyModal';
-import { getStoredAccent, saveStoredAccent, REGIONAL_ACCENT_PROFILES, type RegionalAccent } from './utils/accentProfiles';
-import { StoryShareService, type MoyunStoryPackage } from './utils/storyShare';
+import { getStoredAccent, type RegionalAccent } from './utils/accentProfiles';
+import type { MoyunStoryPackage } from './utils/storyShare';
+import { StorageService, STORAGE_KEYS } from './services/storage';
+import { searchDictionary } from './utils/dictionarySearch';
+
 import { 
   BookOpen, Mic, FolderArchive, Layers, GraduationCap, 
-  Settings as SettingsIcon, Search, Award, Download, Upload, 
-  Sparkles, Check, Volume2
+  Settings as SettingsIcon, Search, Trophy, Edit3
 } from 'lucide-react';
 
 const HSK_GRAMMAR_CONSTRAINTS: Record<string, string> = {
@@ -55,7 +58,7 @@ const HSK_GRAMMAR_CONSTRAINTS: Record<string, string> = {
 export type WorkspaceType = 'reading' | 'speaking' | 'import' | 'review' | 'lessons';
 
 function App() {
-  // Navigation: 5 Modular Workspaces (Sleek v7.0.0 Naming)
+  // Navigation: 5 Modular Workspaces
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceType>('reading');
 
   // Theme: Editorial Dark (Default)
@@ -64,59 +67,38 @@ function App() {
   });
 
   // Settings & Credentials
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
-  const [azureKey, setAzureKey] = useState(() => localStorage.getItem('azure_speech_key') || '');
-  const [azureRegion, setAzureRegion] = useState(() => localStorage.getItem('azure_speech_region') || 'eastus');
+  const [apiKey, setApiKey] = useState(() => StorageService.getItem(STORAGE_KEYS.GEMINI_API_KEY));
+  const [azureKey, setAzureKey] = useState(() => StorageService.getItem(STORAGE_KEYS.AZURE_SPEECH_KEY));
+  const [azureRegion, setAzureRegion] = useState(() => StorageService.getItem(STORAGE_KEYS.AZURE_SPEECH_REGION, 'eastus'));
   const [showSettings, setShowSettings] = useState(false);
 
   // High Fidelity Voice Settings
   const [selectedTtsEngine, setSelectedTtsEngine] = useState<TtsEngine>(() => 
-    (localStorage.getItem('selected_tts_engine') as TtsEngine) || 
-    (localStorage.getItem('azure_speech_key') ? 'azure-neural' : 'cloud-natural')
+    (StorageService.getItem(STORAGE_KEYS.SELECTED_TTS_ENGINE) as TtsEngine) || 
+    (StorageService.getItem(STORAGE_KEYS.AZURE_SPEECH_KEY) ? 'azure-neural' : 'cloud-natural')
   );
   const [selectedAzureVoice, setSelectedAzureVoice] = useState<NeuralVoice>(() => 
-    (localStorage.getItem('selected_azure_voice') as NeuralVoice) || 'zh-CN-XiaoxiaoNeural'
+    (StorageService.getItem(STORAGE_KEYS.SELECTED_AZURE_VOICE) as NeuralVoice) || 'zh-CN-XiaoxiaoNeural'
   );
   const [selectedSystemVoice, setSelectedSystemVoice] = useState<string>(() => 
-    localStorage.getItem('selected_system_voice') || ''
+    StorageService.getItem(STORAGE_KEYS.SELECTED_SYSTEM_VOICE)
   );
   const [appSystemVoices, setAppSystemVoices] = useState<VoiceOption[]>([]);
   const [appRegionalAccent, setAppRegionalAccent] = useState<RegionalAccent>(() => getStoredAccent());
   const [isTestingVoice, setIsTestingVoice] = useState(false);
 
-  useEffect(() => {
-    const updateVoices = () => {
-      const v = AzureSpeechService.getAvailableSystemVoices();
-      setAppSystemVoices(v);
-      if (!selectedSystemVoice && v.length > 0) {
-        setSelectedSystemVoice(v[0].name);
-      }
-    };
-    updateVoices();
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.onvoiceschanged = updateVoices;
-    }
-  }, []);
-
-  const handleTestVoice = () => {
-    if (isTestingVoice) return;
-    setIsTestingVoice(true);
-    AzureSpeechService.speak(
-      '你好，欢迎使用墨韵华文阅读器。这是一段高保真自然中文语音测试。',
-      {
-        engine: selectedTtsEngine,
-        voice: selectedAzureVoice,
-        systemVoiceName: selectedSystemVoice,
-        azureKey: azureKey,
-        azureRegion: azureRegion
-      },
-      () => setIsTestingVoice(false),
-      () => setIsTestingVoice(false)
-    );
-  };
-
-  // Diagnostic Test Modal
+  // Modals & Popups
   const [isDiagnosticOpen, setIsDiagnosticOpen] = useState(false);
+  const [showWritingGrader, setShowWritingGrader] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [strokeOrderModalOpen, setStrokeOrderModalOpen] = useState(false);
+  const [selectedStrokeChar, setSelectedStrokeChar] = useState({ char: '好', pinyin: '', definition: '' });
+  const [selectedPracticeItem, setSelectedPracticeItem] = useState<HanziItem | null>(null);
+  const [isPracticeModalOpen, setIsPracticeModalOpen] = useState(false);
+  const [confusableModalOpen, setConfusableModalOpen] = useState(false);
+  const [selectedConfusableChar, setSelectedConfusableChar] = useState<string | undefined>(undefined);
+  const [isEtymologyModalOpen, setIsEtymologyModalOpen] = useState(false);
+  const [selectedEtymologyChar, setSelectedEtymologyChar] = useState<string | undefined>(undefined);
 
   // Database States
   const [hanziData, setHanziData] = useState<HanziItem[]>([]);
@@ -129,12 +111,9 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [generatedStory, setGeneratedStory] = useState<HanziItem[]>([]);
   const [storyTitle, setStoryTitle] = useState('墨韵 Moyun — Graded Reader');
+  const [continuing, setContinuing] = useState(false);
 
-  // Writing Practice & Modal States
-  const [selectedPracticeItem, setSelectedPracticeItem] = useState<HanziItem | null>(null);
-  const [isPracticeModalOpen, setIsPracticeModalOpen] = useState(false);
-
-  // Dictionary Overrides Map
+  // Dictionary Overrides Map & Editing
   const [overridesMap, setOverridesMap] = useState<Record<string, { pinyin: string; definition: string }>>({});
   const [editingChar, setEditingChar] = useState('');
   const [overridePinyin, setOverridePinyin] = useState('');
@@ -147,15 +126,7 @@ function App() {
   const [showSearchResults, setShowSearchResults] = useState(false);
 
   // Character Inspection Tooltip
-  const [tooltip, setTooltip] = useState<{
-    visible: boolean;
-    content: TooltipContent | null;
-    character: string;
-    item?: HanziItem;
-    contextSentence?: string;
-    x: number;
-    y: number;
-  }>({
+  const [tooltip, setTooltip] = useState<TooltipState>({
     visible: false,
     content: null,
     character: '',
@@ -164,36 +135,20 @@ function App() {
   });
   const hideTimeoutRef = useRef<number | null>(null);
 
-  // SRS-005: Look-Alike Hanzi Modal State
-  const [confusableModalOpen, setConfusableModalOpen] = useState(false);
-  const [selectedConfusableChar, setSelectedConfusableChar] = useState<string | undefined>(undefined);
-
-  // SRS-006: Etymology and Radical Mnemonics Modal State
-  const [isEtymologyModalOpen, setIsEtymologyModalOpen] = useState(false);
-  const [selectedEtymologyChar, setSelectedEtymologyChar] = useState<string | undefined>(undefined);
-
   // SRS States
   const [activeDeckId, setActiveDeckId] = useState<string>('all');
   const [dueCardsCount, setDueCardsCount] = useState(0);
   const [totalCardsCount, setTotalCardsCount] = useState(0);
   const [currentReviewCard, setCurrentReviewCard] = useState<Flashcard | null>(null);
 
-  // Adventure continuation State
-  const [continuing, setContinuing] = useState(false);
-
   // Saved Library stories State
   const [savedStories, setSavedStories] = useState<SavedStory[]>([]);
   const [librarySearchQuery, setLibrarySearchQuery] = useState('');
 
   // Heatmap Stats State
-  const [heatmapData, setHeatmapData] = useState<Record<string, number>>(() => {
-    try {
-      const data = localStorage.getItem('characters_read_heatmap');
-      return data ? JSON.parse(data) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [heatmapData, setHeatmapData] = useState<Record<string, number>>(() => 
+    StorageService.getJson<Record<string, number>>(STORAGE_KEYS.CHARACTERS_HEATMAP, {})
+  );
 
   // Reading velocity records
   const [readingStats, setReadingStats] = useState<ReadingSpeedRecord[]>(() =>
@@ -210,6 +165,21 @@ function App() {
   useEffect(() => {
     applyTheme(currentThemeId);
   }, [currentThemeId]);
+
+  // Load Chinese System Voices
+  useEffect(() => {
+    const updateVoices = () => {
+      const v = AzureSpeechService.getAvailableSystemVoices();
+      setAppSystemVoices(v);
+      if (!selectedSystemVoice && v.length > 0) {
+        setSelectedSystemVoice(v[0].name);
+      }
+    };
+    updateVoices();
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = updateVoices;
+    }
+  }, []);
 
   // Load Hanzi, Vocab, and Overrides on mount
   useEffect(() => {
@@ -263,6 +233,24 @@ function App() {
     }
   }, [isLoadingData, hanziData, vocabData, overridesMap]);
 
+  // Audio Test Handler
+  const handleTestVoice = () => {
+    if (isTestingVoice) return;
+    setIsTestingVoice(true);
+    AzureSpeechService.speak(
+      '你好，欢迎使用墨韵华文阅读器。这是一段高保真自然中文语音测试。',
+      {
+        engine: selectedTtsEngine,
+        voice: selectedAzureVoice,
+        systemVoiceName: selectedSystemVoice,
+        azureKey,
+        azureRegion
+      },
+      () => setIsTestingVoice(false),
+      () => setIsTestingVoice(false)
+    );
+  };
+
   // SRS Helpers
   const loadSRSStats = async (deckId: string = activeDeckId) => {
     try {
@@ -270,11 +258,7 @@ function App() {
       const all = await getAllCards(deckId);
       setDueCardsCount(due.length);
       setTotalCardsCount(all.length);
-      if (due.length > 0) {
-        setCurrentReviewCard(due[0]);
-      } else {
-        setCurrentReviewCard(null);
-      }
+      setCurrentReviewCard(due.length > 0 ? due[0] : null);
     } catch (err) {
       console.error('Failed to load SRS cards:', err);
     }
@@ -294,7 +278,7 @@ function App() {
     }
   };
 
-  // GTU-005: Peer-to-Peer Story Package Import Handler
+  // Peer-to-Peer Story Package Import Handler
   const handleImportStoryPackage = async (pkg: MoyunStoryPackage) => {
     try {
       await dbSaveStory({
@@ -325,16 +309,13 @@ function App() {
         ...prev,
         [todayKey]: (prev[todayKey] || 0) + count
       };
-      localStorage.setItem('characters_read_heatmap', JSON.stringify(updated));
+      StorageService.setJson(STORAGE_KEYS.CHARACTERS_HEATMAP, updated);
       return updated;
     });
     setReadingStats(ReadingAnalytics.getHistory());
   };
 
-  // Search Logic with Pinyin Diacritics Normalization & Tiered Ranking
-  const stripDiacritics = (str: string) =>
-    (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-
+  // Standardized Search Logic
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value;
     setSearchQuery(query);
@@ -343,90 +324,8 @@ function App() {
       setShowSearchResults(false);
       return;
     }
-
-    const cleanQuery = query.toLowerCase().trim();
-    const tonelessQuery = stripDiacritics(cleanQuery);
-
-    interface ScoredItem {
-      item: HanziItem;
-      score: number;
-    }
-
-    const scored: ScoredItem[] = [];
-
-    const evaluateItem = (item: HanziItem) => {
-      const char = item.character || '';
-      const pinyin = (overridesMap[char]?.pinyin || item.pinyin || '').toLowerCase();
-      const tonelessPinyin = stripDiacritics(pinyin);
-      const def = (overridesMap[char]?.definition || item.definition || '').toLowerCase();
-
-      // 1. Exact Hanzi match
-      if (char === cleanQuery) {
-        scored.push({ item, score: 1 });
-        return;
-      }
-      // 2. Exact toneless Pinyin match (e.g. "gou" matches "gǒu")
-      if (tonelessPinyin === tonelessQuery) {
-        scored.push({ item, score: 2 });
-        return;
-      }
-      // 3. Hanzi starts with query
-      if (char.startsWith(cleanQuery)) {
-        scored.push({ item, score: 3 });
-        return;
-      }
-      // 4. Toneless Pinyin starts with query (e.g. "ni" matches "nǐhǎo")
-      if (tonelessPinyin.startsWith(tonelessQuery)) {
-        scored.push({ item, score: 4 });
-        return;
-      }
-      // 5. Hanzi contains query
-      if (char.includes(cleanQuery)) {
-        scored.push({ item, score: 5 });
-        return;
-      }
-      // 6. Toneless Pinyin contains query
-      if (tonelessPinyin.includes(tonelessQuery)) {
-        scored.push({ item, score: 6 });
-        return;
-      }
-      // 7. Definition exact word match
-      const wordRegex = new RegExp(`\\b${cleanQuery}\\b`, 'i');
-      if (wordRegex.test(def)) {
-        scored.push({ item, score: 7 });
-        return;
-      }
-      // 8. Definition contains query substring
-      if (def.includes(cleanQuery)) {
-        scored.push({ item, score: 8 });
-        return;
-      }
-    };
-
-    // Check vocab items first
-    for (const item of vocabData) {
-      evaluateItem(item);
-    }
-    // Check single hanzi
-    for (const item of hanziData) {
-      evaluateItem(item);
-    }
-
-    // Sort by score ascending, deduplicate by character
-    const seenChars = new Set<string>();
-    const sortedMatches: HanziItem[] = [];
-
-    scored.sort((a, b) => a.score - b.score);
-
-    for (const s of scored) {
-      if (!seenChars.has(s.item.character)) {
-        seenChars.add(s.item.character);
-        sortedMatches.push(s.item);
-        if (sortedMatches.length >= 25) break;
-      }
-    }
-
-    setSearchResults(sortedMatches);
+    const results = searchDictionary(query, hanziData, vocabData, overridesMap, 25);
+    setSearchResults(results);
     setShowSearchResults(true);
   };
 
@@ -482,16 +381,13 @@ function App() {
 
     setLoading(true);
     try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
+      const preferredModel = StorageService.getItem(STORAGE_KEYS.GEMINI_MODEL, DEFAULT_GEMINI_MODEL);
       const grammarConstraint = HSK_GRAMMAR_CONSTRAINTS[hskLevel] || "";
       const prompt = `Write a high-quality Chinese graded story strictly at HSK ${hskLevel} level based on: "${storyIdea}".
 Provide a concise Chinese title on the first line. Do NOT output Pinyin or English in the text.
 Grammar constraint: ${grammarConstraint}`;
 
-      const request = await model.generateContent(prompt);
-      const text = request.response.text();
+      const text = await generateGeminiText(apiKey, prompt, preferredModel);
 
       const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       let title = `Graded Story - HSK ${hskLevel}`;
@@ -505,9 +401,10 @@ Grammar constraint: ${grammarConstraint}`;
       const tokens = tokenizeStory(content, hanziData, vocabData, overridesMap);
       setGeneratedStory(tokens);
       recordCharactersRead(content.length);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error generating story:', err);
-      alert('Failed to generate story. Check API key or quota.');
+      const detail = err?.message || 'Check API key or quota.';
+      alert(`Failed to generate story: ${detail}`);
     } finally {
       setLoading(false);
     }
@@ -518,9 +415,7 @@ Grammar constraint: ${grammarConstraint}`;
 
     setContinuing(true);
     try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
+      const preferredModel = StorageService.getItem(STORAGE_KEYS.GEMINI_MODEL, DEFAULT_GEMINI_MODEL);
       const currentText = generatedStory.map(t => t.character).join('');
       const prompt = `Here is the current Chinese story:
 "${currentText}"
@@ -528,15 +423,15 @@ Grammar constraint: ${grammarConstraint}`;
 Continue the story based on this branch: "${promptDirection}".
 Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pinyin or English.`;
 
-      const request = await model.generateContent(prompt);
-      const nextParagraph = request.response.text();
+      const nextParagraph = await generateGeminiText(apiKey, prompt, preferredModel);
 
       const newTokens = tokenizeStory("\n" + nextParagraph, hanziData, vocabData, overridesMap);
       setGeneratedStory(prev => [...prev, ...newTokens]);
       recordCharactersRead(nextParagraph.length);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to generate continuation. Please check API settings.');
+    } catch (err: any) {
+      console.error('Error continuing story:', err);
+      const detail = err?.message || 'Check API key or quota.';
+      alert(`Failed to generate continuation: ${detail}`);
     } finally {
       setContinuing(false);
     }
@@ -556,22 +451,20 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
 
     setLoading(true);
     try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
+      const preferredModel = StorageService.getItem(STORAGE_KEYS.GEMINI_MODEL, DEFAULT_GEMINI_MODEL);
       const storyText = generatedStory.map(t => t.character).join('');
       const prompt = `Rewrite this story to strictly adhere to HSK ${targetLevel} vocabulary and grammar:
 "${storyText}"`;
 
-      const request = await model.generateContent(prompt);
-      const responseText = request.response.text();
+      const responseText = await generateGeminiText(apiKey, prompt, preferredModel);
 
       const tokens = tokenizeStory(responseText, hanziData, vocabData, overridesMap);
       setGeneratedStory(tokens);
       setHskLevel(String(targetLevel));
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error scaling difficulty:', err);
-      alert('Failed to scale story difficulty.');
+      const detail = err?.message || 'Check API key or quota.';
+      alert(`Failed to scale story difficulty: ${detail}`);
     } finally {
       setLoading(false);
     }
@@ -600,7 +493,7 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
     }
   };
 
-  // Add character to flashcards (SRS-001)
+  // Add character to flashcards
   const handleAddToFlashcards = async (char: string, content: TooltipContent, sentenceContext?: string) => {
     try {
       await addCard({
@@ -667,20 +560,6 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
     }
   };
 
-  // State Hydration File Import
-  const handleImportStateFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const res = await importStateBundle(file);
-    alert(res.message);
-    if (res.success) {
-      loadSRSStats();
-      loadLibrary();
-      const map = await getOverridesMap();
-      setOverridesMap(map);
-    }
-  };
-
   if (isLoadingData) {
     return (
       <div style={{
@@ -703,32 +582,30 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
 
   return (
     <div className="app-layout">
-      
-      {/* GLOBAL APPLICATION HEADER - CENTERED FLEXBOX */}
+      {/* GLOBAL APPLICATION HEADER */}
       <header className="app-header print-hide">
-        
         {/* Brand */}
         <div className="app-brand">
           <div className="brand-badge">墨</div>
           <div>
             <h1 className="brand-title">墨韵 Moyun</h1>
-            <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)' }}>
+            <p className="brand-subtitle">
               Graded Chinese Reader & Spoken Studio
             </p>
           </div>
         </div>
 
         {/* Center: Search */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ position: 'relative', width: '300px' }}>
+        <div className="app-header-search">
+          <div style={{ position: 'relative', width: '100%' }}>
             <Search size={14} style={{ position: 'absolute', left: '12px', top: '10px', color: 'var(--text-muted)' }} />
             <input
               type="text"
               value={searchQuery}
               onChange={handleSearchChange}
-              placeholder="Search Hanzi, Pinyin (e.g. gou) or English..."
+              placeholder="Search Hanzi, Pinyin or English..."
               className="form-input"
-              style={{ paddingLeft: '34px', height: '34px', fontSize: '13px', borderRadius: 'var(--radius-sm)' }}
+              style={{ paddingLeft: '34px', height: '34px', fontSize: '13px', borderRadius: 'var(--radius-sm)', width: '100%' }}
             />
             {showSearchResults && searchResults.length > 0 && (
               <div style={{
@@ -782,23 +659,41 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
           </div>
         </div>
 
-        {/* Right Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Right Controls: Unified 34px buttons */}
+        <div className="app-header-actions">
           <OfflineStatusIndicator />
 
           <button
+            onClick={() => setShowWritingGrader(true)}
+            className="header-btn"
+            title="AI Writing & Grammar Grader (AIM-001)"
+          >
+            <Edit3 size={14} color="var(--accent-seal)" />
+            <span className="header-btn-text">Writing</span>
+          </button>
+
+          <button
+            onClick={() => setShowLeaderboard(true)}
+            className="header-btn"
+            title="Weekly Community Reading Leaderboard (GTU-003)"
+          >
+            <Trophy size={14} color="var(--accent-gold)" />
+            <span className="header-btn-text">Leaderboard</span>
+          </button>
+
+          <button
             onClick={() => setShowSettings(true)}
-            className="btn btn-secondary"
-            style={{ padding: '6px 12px', fontSize: '12px' }}
+            className="header-btn"
             title="Open system and voice settings"
           >
-            <SettingsIcon size={14} /> Settings
+            <SettingsIcon size={14} />
+            <span className="header-btn-text">Settings</span>
           </button>
         </div>
-
       </header>
 
-      {/* 5-MODULAR WORKSPACE SWITCHER NAVIGATION - CENTERED FLEXBOX */}
+
+      {/* 5-MODULAR WORKSPACE SWITCHER NAVIGATION */}
       <nav className="workspace-nav print-hide">
         <button
           onClick={() => setActiveWorkspace('reading')}
@@ -854,7 +749,6 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
 
       {/* WORKSPACE MAIN BODY CONTAINER */}
       <main style={{ width: '100%' }}>
-        
         {/* WORKSPACE 1: READING */}
         {activeWorkspace === 'reading' && (
           <ReadingWorkspace
@@ -977,261 +871,49 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
             onOpenDiagnosticTest={() => setIsDiagnosticOpen(true)}
           />
         )}
-
       </main>
 
       {/* CHARACTER INSPECTION & RADICAL TOOLTIP POPUP */}
-      {tooltip.visible && tooltip.content && tooltip.item && (
-        <div
-          style={{
-            position: 'absolute',
-            left: `${tooltip.x}px`,
-            top: `${tooltip.y}px`,
-            transform: 'translate(-50%, -100%)',
-            zIndex: 1000
-          }}
-          onMouseEnter={() => {
-            if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-          }}
-          onMouseLeave={() => {
-            hideTimeoutRef.current = window.setTimeout(() => {
-              setTooltip(prev => ({ ...prev, visible: false }));
-            }, 300);
-          }}
-        >
-          <div className="tooltip-popup">
-            <div className="tooltip-header">
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                <span className="tooltip-char">{tooltip.character}</span>
-                {getTraditionalVariant(tooltip.character) && (
-                  <span 
-                    style={{ fontSize: '13px', color: 'var(--text-muted)', fontFamily: 'var(--font-zh)' }} 
-                    title={`Traditional Chinese variant (TRC-001): ${getTraditionalVariant(tooltip.character)}`}
-                  >
-                    [{getTraditionalVariant(tooltip.character)}]
-                  </span>
-                )}
-                <span className="tooltip-pinyin">{tooltip.content.pinyin}</span>
-                {tooltip.content.pinyin && (
-                  <span
-                    style={{ fontSize: '11px', color: 'var(--accent-gold)', fontFamily: 'var(--font-zh)' }}
-                    title="Zhuyin Bopomofo (注音符号) phonetic transcription"
-                  >
-                    [{pinyinToZhuyin(tooltip.content.pinyin)}]
-                  </span>
-                )}
-                {tooltip.content.hskLevel && (
-                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    HSK {tooltip.content.hskLevel}
-                  </span>
-                )}
-                {tooltip.content.isChengyu && (
-                  <span style={{
-                    fontSize: '10px',
-                    backgroundColor: 'rgba(217, 119, 6, 0.15)',
-                    color: 'var(--accent-gold)',
-                    border: '1px solid var(--accent-gold)',
-                    padding: '1px 6px',
-                    borderRadius: '4px',
-                    fontWeight: 600,
-                    letterSpacing: '0.05em'
-                  }}>
-                    📜 成语 Chengyu
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={() => setTooltip(prev => ({ ...prev, visible: false }))}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '12px' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="tooltip-divider" />
-
-            <div className="tooltip-definition">
-              {tooltip.content.definition}
-            </div>
-
-            {/* TRC-005: Chengyu (Chinese Idiom) Deep-Dive Card */}
-            {tooltip.content.isChengyu && (
-              <div style={{
-                marginTop: '8px',
-                padding: '10px 12px',
-                backgroundColor: 'rgba(217, 119, 6, 0.08)',
-                border: '1px solid rgba(217, 119, 6, 0.25)',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '12px'
-              }}>
-                {tooltip.content.chengyuLiteral && (
-                  <div style={{ marginBottom: '6px' }}>
-                    <span style={{ fontWeight: 600, color: 'var(--accent-gold)' }}>Literal Translation: </span>
-                    <span style={{ color: 'var(--text-primary)', fontStyle: 'italic' }}>"{tooltip.content.chengyuLiteral}"</span>
-                  </div>
-                )}
-                {tooltip.content.chengyuAllusion && (
-                  <div>
-                    <span style={{ fontWeight: 600, color: 'var(--accent-gold)' }}>Historical Allusion (典故): </span>
-                    <span style={{ color: 'var(--text-secondary)', lineHeight: '1.4' }}>{tooltip.content.chengyuAllusion}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* SRS-009: Homophone Warning Alert */}
-            {(() => {
-              const homophoneInfo = checkHomophone(tooltip.character, tooltip.content.pinyin);
-              if (!homophoneInfo) return null;
-              return (
-                <div className="homophone-warning-box">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px' }}>
-                    <span className="homophone-badge-pill">⚠️ Homophone Alert</span>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{homophoneInfo.pinyin}</span>
-                  </div>
-                  <div style={{ color: 'var(--text-secondary)', marginBottom: '4px', fontSize: '11px' }}>
-                    {homophoneInfo.warning}
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                    {homophoneInfo.confusables.map((c, ci) => (
-                      <span key={ci} style={{
-                        fontSize: '10px',
-                        background: 'rgba(255, 255, 255, 0.06)',
-                        padding: '2px 5px',
-                        borderRadius: '3px',
-                        border: '1px solid var(--border-subtle)'
-                      }}>
-                        <strong>{c.char}</strong>: <em>{c.example}</em>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Radical breakdown */}
-            <div style={{ marginBottom: '8px', marginTop: '8px' }}>
-              <RadicalDecomposition item={tooltip.item} />
-            </div>
-
-            {/* SRS-006: Character Etymology & Narrative Mnemonic */}
-            {(() => {
-              const etymology = getEtymology(tooltip.character);
-              if (!etymology) return null;
-              return (
-                <div style={{
-                  marginBottom: '8px',
-                  padding: '8px 10px',
-                  borderRadius: 'var(--radius-sm)',
-                  backgroundColor: 'rgba(212, 160, 23, 0.08)',
-                  border: '1px solid rgba(212, 160, 23, 0.25)',
-                  fontSize: '11px'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <span style={{ fontWeight: 600, color: 'var(--accent-gold)' }}>
-                      🧭 {etymology.categoryLabel}
-                    </span>
-                    <button
-                      onClick={() => {
-                        setSelectedEtymologyChar(tooltip.character);
-                        setIsEtymologyModalOpen(true);
-                        setTooltip(prev => ({ ...prev, visible: false }));
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--accent-gold)',
-                        fontSize: '10px',
-                        cursor: 'pointer',
-                        padding: 0,
-                        textDecoration: 'underline'
-                      }}
-                    >
-                      Explore →
-                    </button>
-                  </div>
-                  <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: '1.4' }}>
-                    "{etymology.mnemonic}"
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* SRS-005: Look-Alike / Visually Confusable Warning */}
-            {(() => {
-              const lookalikeCluster = getConfusableCluster(tooltip.character);
-              if (!lookalikeCluster) return null;
-              const others = lookalikeCluster.characters.filter(c => c.character !== tooltip.character).map(c => c.character).join(', ');
-              return (
-                <div className="lookalike-warning-box">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
-                    <span style={{ fontWeight: 600, color: 'var(--accent-gold)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                      👁️ Look-Alike Hanzi
-                    </span>
-                    <button
-                      onClick={() => {
-                        setSelectedConfusableChar(tooltip.character);
-                        setConfusableModalOpen(true);
-                        setTooltip(prev => ({ ...prev, visible: false }));
-                      }}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--accent-bamboo)',
-                        cursor: 'pointer',
-                        fontSize: '10px',
-                        padding: 0,
-                        textDecoration: 'underline'
-                      }}
-                    >
-                      Practice Quiz →
-                    </button>
-                  </div>
-                  <div style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
-                    Confusable with: <strong>{others}</strong>
-                  </div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '2px', fontStyle: 'italic' }}>
-                    {lookalikeCluster.pedagogicalTip}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Flat Text Link Actions (Section 5.3) */}
-            <div className="tooltip-actions">
-              <button
-                onClick={() => {
-                  setSelectedPracticeItem(tooltip.item || null);
-                  setIsPracticeModalOpen(true);
-                  setTooltip(prev => ({ ...prev, visible: false }));
-                }}
-                className="tooltip-action-link"
-              >
-                ✍️ Practice
-              </button>
-              <button
-                onClick={() => handleAddToFlashcards(tooltip.character, tooltip.content!, tooltip.contextSentence)}
-                className="tooltip-action-link"
-                style={{ color: 'var(--accent-seal)' }}
-              >
-                ➕ Add to SRS
-              </button>
-              <button
-                onClick={() => {
-                  setEditingChar(tooltip.character);
-                  setOverridePinyin(tooltip.content?.pinyin || '');
-                  setOverrideDefinition(tooltip.content?.definition || '');
-                  setIsEditingOverride(true);
-                  setTooltip(prev => ({ ...prev, visible: false }));
-                }}
-                className="tooltip-action-link"
-              >
-                ✏️ Override
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CharacterTooltip
+        tooltip={tooltip}
+        onClose={() => setTooltip(prev => ({ ...prev, visible: false }))}
+        onMouseEnter={() => {
+          if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+        }}
+        onMouseLeave={() => {
+          hideTimeoutRef.current = window.setTimeout(() => {
+            setTooltip(prev => ({ ...prev, visible: false }));
+          }, 300);
+        }}
+        onPractice={(item) => {
+          setSelectedPracticeItem(item);
+          setIsPracticeModalOpen(true);
+          setTooltip(prev => ({ ...prev, visible: false }));
+        }}
+        onAddToFlashcards={handleAddToFlashcards}
+        onOverride={(char, pinyin, def) => {
+          setEditingChar(char);
+          setOverridePinyin(pinyin);
+          setOverrideDefinition(def);
+          setIsEditingOverride(true);
+          setTooltip(prev => ({ ...prev, visible: false }));
+        }}
+        onStrokeOrder={(char, pinyin, def) => {
+          setSelectedStrokeChar({ char, pinyin, definition: def });
+          setStrokeOrderModalOpen(true);
+          setTooltip(prev => ({ ...prev, visible: false }));
+        }}
+        onExploreEtymology={(char) => {
+          setSelectedEtymologyChar(char);
+          setIsEtymologyModalOpen(true);
+          setTooltip(prev => ({ ...prev, visible: false }));
+        }}
+        onPracticeConfusable={(char) => {
+          setSelectedConfusableChar(char);
+          setConfusableModalOpen(true);
+          setTooltip(prev => ({ ...prev, visible: false }));
+        }}
+      />
 
       {/* HANZI PRACTICE WRITING MODAL */}
       {selectedPracticeItem && (
@@ -1261,326 +943,49 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
       />
 
       {/* DICTIONARY OVERRIDE MODAL */}
-      {isEditingOverride && (
-        <div className="settings-overlay" onClick={() => setIsEditingOverride(false)}>
-          <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: 600 }}>Custom Definition</h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              <span style={{ fontSize: '32px', fontWeight: 'bold', fontFamily: 'var(--font-zh)' }}>{editingChar}</span>
-              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Define custom pronunciation and definition for this character.</span>
-            </div>
+      <DictionaryOverrideModal
+        isOpen={isEditingOverride}
+        onClose={() => setIsEditingOverride(false)}
+        character={editingChar}
+        pinyin={overridePinyin}
+        definition={overrideDefinition}
+        hasExistingOverride={Boolean(overridesMap[editingChar])}
+        onPinyinChange={setOverridePinyin}
+        onDefinitionChange={setOverrideDefinition}
+        onSave={handleSaveOverride}
+        onReset={handleDeleteOverride}
+      />
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 500, display: 'block', marginBottom: '4px' }}>Pinyin</label>
-                <input
-                  type="text"
-                  value={overridePinyin}
-                  onChange={(e) => setOverridePinyin(e.target.value)}
-                  className="form-input"
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 500, display: 'block', marginBottom: '4px' }}>English Definition</label>
-                <textarea
-                  value={overrideDefinition}
-                  onChange={(e) => setOverrideDefinition(e.target.value)}
-                  className="form-input"
-                  style={{ minHeight: '70px' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                <button onClick={handleSaveOverride} className="generate-button" style={{ flex: 2 }}>
-                  Save Definition
-                </button>
-                {overridesMap[editingChar] && (
-                  <button onClick={handleDeleteOverride} className="control-button" style={{ flex: 1, color: 'var(--accent-cinnabar)' }}>
-                    Reset Standard
-                  </button>
-                )}
-                <button onClick={() => setIsEditingOverride(false)} className="control-button" style={{ flex: 1 }}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* GLOBAL SETTINGS & HYDRATION MODAL */}
-      {showSettings && (
-        <div className="settings-overlay" onClick={() => setShowSettings(false)}>
-          <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Settings</h3>
-              <button onClick={() => setShowSettings(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: 'var(--text-muted)' }}>✕</button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Gemini API Key */}
-              <div>
-                <label style={{ fontSize: '13px', fontWeight: 500, display: 'block', marginBottom: '4px' }}>
-                  Google Gemini API Key
-                </label>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => {
-                    setApiKey(e.target.value);
-                    localStorage.setItem('gemini_api_key', e.target.value);
-                  }}
-                  placeholder="Enter Gemini API key"
-                  className="form-input"
-                />
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  Used for generating graded stories, lessons, and voice roleplay.
-                </span>
-              </div>
-
-              {/* Voice & Speech Fidelity Settings */}
-              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
-                    Voice Synthesis Engine
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleTestVoice}
-                    disabled={isTestingVoice}
-                    className="btn btn-secondary"
-                    style={{ fontSize: '11px', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '5px' }}
-                  >
-                    <Volume2 size={13} /> {isTestingVoice ? 'Speaking...' : 'Test Voice'}
-                  </button>
-                </div>
-
-                <select
-                  value={selectedTtsEngine}
-                  onChange={(e) => {
-                    const eng = e.target.value as TtsEngine;
-                    setSelectedTtsEngine(eng);
-                    localStorage.setItem('selected_tts_engine', eng);
-                  }}
-                  className="form-select"
-                  style={{ width: '100%', marginBottom: '10px' }}
-                >
-                  <option value="cloud-natural">🌟 Cloud Natural (Fluent & Expressive - Zero Setup)</option>
-                  <option value="azure-neural">💎 Microsoft Azure Neural (Xiaoxiao / Yunxi - Studio Grade)</option>
-                  <option value="system">💻 System / Browser Web Speech (Local OS Voices)</option>
-                </select>
-
-                <div style={{ marginBottom: '12px', padding: '10px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-                  <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>
-                    Regional Dialect & Accent (ALS-004)
-                  </label>
-                  <select
-                    value={appRegionalAccent}
-                    onChange={(e) => {
-                      const acc = e.target.value as RegionalAccent;
-                      setAppRegionalAccent(acc);
-                      saveStoredAccent(acc);
-                    }}
-                    className="form-select"
-                    style={{ width: '100%', marginBottom: '6px' }}
-                  >
-                    <option value="standard">🏛️ Standard Northern Mandarin (标准普通话)</option>
-                    <option value="beijing_erhua">🏮 Beijing Dialect (北京儿化音 - Erhua R-coloring)</option>
-                    <option value="taiwan">🍵 Taiwanese Mandarin (台湾国语 / 台湾华语)</option>
-                  </select>
-                  <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                    {REGIONAL_ACCENT_PROFILES[appRegionalAccent]?.description}
-                  </p>
-                </div>
-
-                {selectedTtsEngine === 'cloud-natural' && (
-                  <p style={{ margin: '0 0 10px 0', fontSize: '11px', color: 'var(--text-muted)' }}>
-                    High-fidelity neural Mandarin audio streamed with natural human cadence. Works out-of-the-box with no configuration.
-                  </p>
-                )}
-
-                {selectedTtsEngine === 'azure-neural' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
-                    <div>
-                      <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                        Azure Neural Voice Model
-                      </label>
-                      <select
-                        value={selectedAzureVoice}
-                        onChange={(e) => {
-                          const v = e.target.value as NeuralVoice;
-                          setSelectedAzureVoice(v);
-                          localStorage.setItem('selected_azure_voice', v);
-                        }}
-                        className="form-select"
-                        style={{ width: '100%' }}
-                      >
-                        <option value="zh-CN-XiaoxiaoNeural">Xiaoxiao (Female - Warm, Expressive, Standard)</option>
-                        <option value="zh-CN-YunxiNeural">Yunxi (Male - Lively, Fluent, Conversational)</option>
-                        <option value="zh-CN-YunjianNeural">Yunjian (Male - Narrative, Calm, Documentary)</option>
-                        <option value="zh-CN-XiaoyiNeural">Xiaoyi (Female - Gentle, Storyteller)</option>
-                      </select>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '8px' }}>
-                      <div>
-                        <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '2px' }}>
-                          Azure Speech Key (500k chars/mo free)
-                        </label>
-                        <input
-                          type="password"
-                          value={azureKey}
-                          onChange={(e) => {
-                            setAzureKey(e.target.value);
-                            localStorage.setItem('azure_speech_key', e.target.value);
-                          }}
-                          placeholder="Enter Azure Key"
-                          className="form-input"
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '2px' }}>
-                          Region
-                        </label>
-                        <input
-                          type="text"
-                          value={azureRegion}
-                          onChange={(e) => {
-                            setAzureRegion(e.target.value);
-                            localStorage.setItem('azure_speech_region', e.target.value);
-                          }}
-                          placeholder="eastus"
-                          className="form-input"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {selectedTtsEngine === 'system' && (
-                  <div style={{ marginBottom: '10px' }}>
-                    <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
-                      Detected Chinese System Voices ({appSystemVoices.length})
-                    </label>
-                    {appSystemVoices.length === 0 ? (
-                      <p style={{ margin: 0, fontSize: '11px', color: 'var(--accent-seal)' }}>
-                        No Chinese voice packages detected on your system. Please switch to "Cloud Natural" above or install Windows Chinese voices.
-                      </p>
-                    ) : (
-                      <select
-                        value={selectedSystemVoice}
-                        onChange={(e) => {
-                          setSelectedSystemVoice(e.target.value);
-                          localStorage.setItem('selected_system_voice', e.target.value);
-                        }}
-                        className="form-select"
-                        style={{ width: '100%' }}
-                      >
-                        {appSystemVoices.map(v => (
-                          <option key={v.id} value={v.name}>
-                            {v.isNatural ? '✨ [Natural/Online] ' : '[Offline] '}
-                            {v.name}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                    <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>
-                      💡 Tip: Opening in Microsoft Edge or installing "Natural Voices" in Windows Settings provides Microsoft Xiaoxiao & Yunxi for free offline!
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Theme Selector */}
-              <div>
-                <label style={{ fontSize: '13px', fontWeight: 500, display: 'block', marginBottom: '6px' }}>
-                  Theme Preference
-                </label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {['dark', 'light'].map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => {
-                        setCurrentThemeId(t);
-                        applyTheme(t);
-                      }}
-                      className="control-button"
-                      style={{
-                        flex: 1,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.04em',
-                        fontSize: '12px',
-                        backgroundColor: currentThemeId === t ? 'var(--text-primary)' : 'var(--bg-base)',
-                        color: currentThemeId === t ? 'var(--bg-base)' : 'var(--text-primary)',
-                        border: '1px solid var(--border-strong)'
-                      }}
-                    >
-                      {t === 'dark' ? 'Editorial Dark' : 'Editorial Paper'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Placement Test */}
-              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 500 }}>Curriculum Placement Test</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Calibrate your target HSK level via dynamic assessment.</div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowSettings(false);
-                      setIsDiagnosticOpen(true);
-                    }}
-                    className="btn btn-secondary"
-                    style={{ fontSize: '12px', padding: '6px 12px' }}
-                  >
-                    <Award size={13} /> Take Test
-                  </button>
-                </div>
-              </div>
-              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '14px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 500, display: 'block', marginBottom: '6px' }}>
-                  Multi-Device State Backup & Restore
-                </label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => exportStateBundle()}
-                    className="control-button"
-                    style={{ flex: 1, fontSize: '12px' }}
-                  >
-                    <Download size={14} /> Export Backup (.json)
-                  </button>
-                  <label
-                    className="control-button"
-                    style={{ flex: 1, fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', gap: '6px' }}
-                  >
-                    <Upload size={14} /> Restore Backup
-                    <input
-                      type="file"
-                      accept=".json"
-                      onChange={handleImportStateFile}
-                      style={{ display: 'none' }}
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
-                <button
-                  onClick={() => setShowSettings(false)}
-                  className="generate-button"
-                  style={{ minWidth: '90px', padding: '8px 20px' }}
-                >
-                  Done
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* GLOBAL SETTINGS MODAL */}
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        apiKey={apiKey}
+        setApiKey={setApiKey}
+        azureKey={azureKey}
+        setAzureKey={setAzureKey}
+        azureRegion={azureRegion}
+        setAzureRegion={setAzureRegion}
+        selectedTtsEngine={selectedTtsEngine}
+        setSelectedTtsEngine={setSelectedTtsEngine}
+        selectedAzureVoice={selectedAzureVoice}
+        setSelectedAzureVoice={setSelectedAzureVoice}
+        selectedSystemVoice={selectedSystemVoice}
+        setSelectedSystemVoice={setSelectedSystemVoice}
+        appSystemVoices={appSystemVoices}
+        appRegionalAccent={appRegionalAccent}
+        setAppRegionalAccent={setAppRegionalAccent}
+        isTestingVoice={isTestingVoice}
+        onTestVoice={handleTestVoice}
+        currentThemeId={currentThemeId}
+        setCurrentThemeId={setCurrentThemeId}
+        onOpenDiagnostic={() => setIsDiagnosticOpen(true)}
+        onStateRestored={() => {
+          loadSRSStats();
+          loadLibrary();
+          getOverridesMap().then(setOverridesMap);
+        }}
+      />
 
       {/* SRS-005: Look-Alike Hanzi Drills Modal */}
       <ConfusableHanziModal
@@ -1596,6 +1001,35 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
         initialCharacter={selectedEtymologyChar}
       />
 
+      {/* AIM-001: AI Writing & Grammar Grader Modal */}
+      <WritingGraderModal
+        isOpen={showWritingGrader}
+        onClose={() => setShowWritingGrader(false)}
+        apiKey={apiKey}
+        onLoadIntoReader={(title, rawText) => {
+          const tokens = tokenizeStory(rawText, hanziData, vocabData, overridesMap);
+          setStoryTitle(title);
+          setGeneratedStory(tokens);
+          setActiveWorkspace('reading');
+          recordCharactersRead(rawText.length);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+      />
+
+      {/* GTU-003: Opt-in Community Leaderboards Modal */}
+      <CommunityLeaderboardModal
+        isOpen={showLeaderboard}
+        onClose={() => setShowLeaderboard(false)}
+      />
+
+      {/* AIM-010: Integrated Stroke Order Numbered Typography Modal */}
+      <StrokeOrderModal
+        isOpen={strokeOrderModalOpen}
+        onClose={() => setStrokeOrderModalOpen(false)}
+        character={selectedStrokeChar.char}
+        pinyin={selectedStrokeChar.pinyin}
+        definition={selectedStrokeChar.definition}
+      />
     </div>
   );
 }

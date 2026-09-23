@@ -3,6 +3,8 @@ import { Mic, Square, Volume2, Sparkles, User, Bot, RotateCcw, Coffee, Car, Home
 import { SpeechRecognitionService } from '../services/speechRecognition';
 import { AzureSpeechService } from '../services/azureSpeech';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { STORAGE_KEYS } from '../services/storage';
+import { DEFAULT_GEMINI_MODEL } from '../services/gemini';
 
 export interface RoleplayPersona {
   id: string;
@@ -305,24 +307,39 @@ export const ConversationalVoiceAgent: React.FC = () => {
       let usedGemini = false;
 
       if (apiKey) {
-        try {
-          const genAI = new GoogleGenerativeAI(apiKey);
-          const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
-          const prompt = `${activePersona.systemPrompt}
+        const preferredModel = localStorage.getItem(STORAGE_KEYS.GEMINI_MODEL) || DEFAULT_GEMINI_MODEL;
+        const modelsToTry = [
+          preferredModel,
+          'gemini-2.5-flash',
+          'gemini-2.5-flash-lite',
+          'gemini-3.8-flash',
+          'gemini-3.5-flash',
+          'gemini-3.1-flash-lite',
+          'gemini-2.5-pro',
+          'gemini-2.0-flash',
+          'gemini-1.5-flash'
+        ].filter((m, idx, arr) => Boolean(m) && arr.indexOf(m) === idx);
+        const prompt = `${activePersona.systemPrompt}
 Current situation: ${activePersona.location}.
 Mission target: ${activePersona.mission}.
 The learner just said: "${userText}".
 Respond directly in character with 1-2 spoken Simplified Chinese sentences.
 Do NOT use markdown, pinyin, or English.`;
 
-          const response = await model.generateContent(prompt);
-          const raw = response.response.text().trim();
-          if (raw && raw.length > 0) {
-            replyText = raw;
-            usedGemini = true;
+        const genAI = new GoogleGenerativeAI(apiKey);
+        for (const modelId of modelsToTry) {
+          try {
+            const model = genAI.getGenerativeModel({ model: modelId });
+            const response = await model.generateContent(prompt);
+            const raw = response.response.text().trim();
+            if (raw && raw.length > 0) {
+              replyText = raw;
+              usedGemini = true;
+              break;
+            }
+          } catch (err) {
+            console.warn(`Gemini voice dialogue attempt with ${modelId} failed:`, err);
           }
-        } catch (err) {
-          console.warn('Gemini generative dialogue fallback to offline tree:', err);
         }
       }
 

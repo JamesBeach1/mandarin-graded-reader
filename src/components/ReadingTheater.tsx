@@ -3,7 +3,7 @@ import type { HanziItem } from '../types/HanziItem';
 import { 
   Volume2, Pause, Play, Square, BookOpen, Eye, EyeOff, Save, Printer, 
   TrendingDown, TrendingUp, Maximize2, Minimize2, Languages, Sparkles,
-  ChevronDown, MoreHorizontal, Palette, Zap, Subtitles, BarChart3, HelpCircle, RotateCcw, Share2
+  ChevronDown, MoreHorizontal, Palette, Zap, Subtitles, BarChart3, HelpCircle, RotateCcw, Share2, Settings
 } from 'lucide-react';
 import { AzureSpeechService, type TtsEngine, type VoiceOption, type AudioPlaybackHandle } from '../services/azureSpeech';
 import { findGrammarPatterns, type GrammarPatternMatch } from '../utils/grammarHighlighter';
@@ -24,6 +24,9 @@ import { StoryShareModal } from './StoryShareModal';
 import type { MoyunStoryPackage } from '../utils/storyShare';
 import { CulturalContextEngine, type CulturalContextNote } from '../utils/culturalContextEngine';
 import { CulturalNotesModal } from './CulturalNotesModal';
+import { AudioPrecacheModal } from './AudioPrecacheModal';
+import { StoryClozeModal } from './StoryClozeModal';
+import { StorageService, STORAGE_KEYS } from '../services/storage';
 
 interface ReadingTheaterProps {
   storyTitle: string;
@@ -52,8 +55,6 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
   isLoading,
   onImportStory
 }) => {
-  // Reading mode: horizontal or traditional vertical-rl
-  const [isVertical, setIsVertical] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [showPinyin, setShowPinyin] = useState(true);
   const [hidePinyinLevel, setHidePinyinLevel] = useState<number>(0);
@@ -62,11 +63,11 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
 
   // Voice Engine State
   const [selectedEngine, setSelectedEngine] = useState<TtsEngine>(() => 
-    (localStorage.getItem('selected_tts_engine') as TtsEngine) || 
-    (localStorage.getItem('azure_speech_key') ? 'azure-neural' : 'cloud-natural')
+    (StorageService.getItem(STORAGE_KEYS.SELECTED_TTS_ENGINE) as TtsEngine) || 
+    (StorageService.getItem(STORAGE_KEYS.AZURE_SPEECH_KEY) ? 'azure-neural' : 'cloud-natural')
   );
   const [selectedSystemVoice, setSelectedSystemVoice] = useState<string>(() =>
-    localStorage.getItem('selected_system_voice') || ''
+    StorageService.getItem(STORAGE_KEYS.SELECTED_SYSTEM_VOICE)
   );
   const [systemVoices, setSystemVoices] = useState<VoiceOption[]>([]);
   // ALS-004: Regional Dialect & Accent Toggles
@@ -77,40 +78,39 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
   const [revealedTranslations, setRevealedTranslations] = useState<Record<number, boolean>>({});
   const [continuationInput, setContinuationInput] = useState('');
 
-  // Grammar highlighting toggle
-  const [highlightGrammar, setHighlightGrammar] = useState(true);
+  // Grammar highlighting toggle (defaults to false for clean reading experience)
+  const [highlightGrammar, setHighlightGrammar] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
+  const [showAudioMenu, setShowAudioMenu] = useState(false);
+  const audioMenuRef = useRef<HTMLDivElement | null>(null);
 
   // TRC-003: Tone Color Coding Mode ('off' | 'pinyin' | 'both')
   const [toneColorMode, setToneColorMode] = useState<ToneColorMode>(() => 
-    (localStorage.getItem('moyun_tone_color_mode') as ToneColorMode) || 'off'
+    (StorageService.getItem(STORAGE_KEYS.TONE_COLOR_MODE) as ToneColorMode) || 'off'
   );
 
   // ALS-001: Hover-to-Play Audio Narration
   const [hoverAudioEnabled, setHoverAudioEnabled] = useState<boolean>(() => 
-    localStorage.getItem('moyun_hover_audio') === 'true'
+    StorageService.getItem(STORAGE_KEYS.HOVER_AUDIO) === 'true'
   );
   const hoverAudioTimerRef = useRef<any>(null);
 
   // GTU-009: Focus Mode typography scale
   const [focusFontSize, setFocusFontSize] = useState<number>(22);
 
-  // TRC-010: Contextual Paragraph Translation
-  const [revealedParagraphs, setRevealedParagraphs] = useState<Record<number, boolean>>({});
-
   // TRC-001: Script Preference (Simplified vs Traditional)
   const [scriptPreference, setScriptPreference] = useState<ChineseScript>(() => 
-    (localStorage.getItem('moyun_script_preference') as ChineseScript) || 'simplified'
+    (StorageService.getItem(STORAGE_KEYS.SCRIPT_PREFERENCE) as ChineseScript) || 'simplified'
   );
 
   // TRC-004: Adaptive Pinyin Display Mode & Mastered Characters Set
   const [pinyinDisplayMode, setPinyinDisplayMode] = useState<'all' | 'adaptive' | 'level'>(() => 
-    (localStorage.getItem('moyun_pinyin_display_mode') as any) || 'all'
+    (StorageService.getItem(STORAGE_KEYS.PINYIN_DISPLAY_MODE) as any) || 'all'
   );
   // TRC-002: Phonetic Script (Pinyin vs Zhuyin Bopomofo)
   const [phoneticNotation, setPhoneticNotation] = useState<'pinyin' | 'zhuyin'>(() => 
-    (localStorage.getItem('moyun_phonetic_notation') as any) || 'pinyin'
+    (StorageService.getItem(STORAGE_KEYS.PHONETIC_NOTATION) as any) || 'pinyin'
   );
   const [masteredChars, setMasteredChars] = useState<Set<string>>(new Set());
 
@@ -139,6 +139,9 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
 
   // TRC-009: Cultural Context AI Notes Modal State
   const [showCulturalNotesModal, setShowCulturalNotesModal] = useState(false);
+
+  // AIM-009: Offline Audio Pre-caching Modal State
+  const [showPrecacheModal, setShowPrecacheModal] = useState(false);
 
   // AIM-004: Real-time Vocabulary Difficulty Scaler State
   const [realTimeHsk, setRealTimeHsk] = useState<number>(() => parseInt(hskLevel, 10) || 1);
@@ -237,11 +240,14 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
     }
   };
 
-  // Close actions menu when clicking outside
+  // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node)) {
         setShowActionsMenu(false);
+      }
+      if (audioMenuRef.current && !audioMenuRef.current.contains(e.target as Node)) {
+        setShowAudioMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -420,7 +426,7 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
     });
     currentSentenceText += token.character;
 
-    if (token.character.match(/[。！？\n]/)) {
+    if (token.character.match(/[。！？.!?\n]/)) {
       sentences.push({
         id: sentences.length,
         tokens: [...currentSentenceTokens],
@@ -432,14 +438,21 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
   });
 
   if (currentSentenceTokens.length > 0) {
-    sentences.push({
-      id: sentences.length,
-      tokens: [...currentSentenceTokens],
-      text: currentSentenceText.trim()
-    });
+    const hasChineseOrWord = currentSentenceTokens.some(t => !t.item.isNonChinese && t.item.character.trim().length > 0);
+    if (!hasChineseOrWord && sentences.length > 0) {
+      const lastSentence = sentences[sentences.length - 1];
+      lastSentence.tokens.push(...currentSentenceTokens);
+      lastSentence.text = (lastSentence.text + currentSentenceText).trim();
+    } else {
+      sentences.push({
+        id: sentences.length,
+        tokens: [...currentSentenceTokens],
+        text: currentSentenceText.trim()
+      });
+    }
   }
 
-  // TRC-010: Group sentences into paragraphs (split by newline or every 3 sentences)
+  // Group sentences into natural paragraphs (split by newline)
   interface EnrichedParagraph {
     id: number;
     sentences: typeof sentences;
@@ -452,7 +465,7 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
   sentences.forEach((sent, sIdx) => {
     curParaSentences.push(sent);
     const endsWithBreak = sent.tokens.some(t => t.item.character.includes('\n'));
-    if (endsWithBreak || curParaSentences.length >= 3 || sIdx === sentences.length - 1) {
+    if (endsWithBreak || sIdx === sentences.length - 1) {
       paragraphs.push({
         id: paragraphs.length,
         sentences: [...curParaSentences],
@@ -580,482 +593,512 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
 
   return (
     <div className={`reading-theater ${isFocusMode ? 'focus-mode-active' : ''}`}>
-      {/* Top Reading Toolbar */}
+      {/* Top Reading Toolbar: Clean 2-Tier Structured Layout */}
       {!isFocusMode && (
-        <div className="reading-toolbar">
-          {/* Cluster 1: Curriculum & Pacing */}
-          <div className="reading-toolbar-group">
-            <span style={{
-              backgroundColor: 'var(--border-strong)',
-              color: 'var(--text-primary)',
-              fontSize: '11px',
-              fontWeight: 500,
-              padding: '4px 8px',
-              borderRadius: 'var(--radius-sm)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em'
-            }}>
-              HSK {hskLevel || '1'}
-            </span>
-            <button
-              onClick={() => setShowVelocityModal(true)}
-              style={{
-                fontSize: '11px',
+        <div className="reading-toolbar" style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'stretch' }}>
+          
+          {/* Tier 1: Primary Audio Narration & Pacing Controls */}
+          <div className="reading-toolbar-tier1" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            
+            {/* Level & Reading Speed */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{
+                backgroundColor: 'var(--bg-panel)',
                 color: 'var(--text-primary)',
-                fontFamily: 'var(--font-mono)',
-                background: 'rgba(245, 158, 11, 0.08)',
-                border: '1px solid rgba(245, 158, 11, 0.3)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '3px 7px',
+                fontSize: '12px',
+                fontWeight: 700,
+                padding: '4px 10px',
+                borderRadius: 'var(--radius-pill)',
+                border: '1px solid var(--border-subtle)',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '4px',
-                cursor: 'pointer'
-              }}
-              title="Reading Velocity & Fluency Analytics (GTU-002): View CPM progression & HSK benchmarks"
-            >
-              <Zap size={11} color="#f59e0b" /> {currentCPM} CPM
-            </button>
-          </div>
+                gap: '5px'
+              }}>
+                🎯 HSK {hskLevel || '1'}
+              </span>
 
-          {/* Cluster 2: Streamlined Audio Player Bar */}
-          <div className="reading-player-bar">
-            <button
-              onClick={() => {
-                if (playbackStatus === 'playing') {
-                  pauseAudio();
-                } else if (playbackStatus === 'paused') {
-                  resumeAudio();
-                } else {
-                  startAudio();
-                }
-              }}
-              className={`btn ${playbackStatus === 'playing' ? 'btn-bamboo' : playbackStatus === 'paused' ? 'btn-primary' : 'btn-secondary'}`}
-              title={playbackStatus === 'playing' ? 'Pause Narration' : playbackStatus === 'paused' ? 'Resume Narration' : 'Read Aloud'}
-              style={{ padding: '5px 10px', fontSize: '12px' }}
-            >
-              {playbackStatus === 'playing' ? <Pause size={13} /> : <Play size={13} />} 
-              <span>{playbackStatus === 'playing' ? 'Pause' : playbackStatus === 'paused' ? 'Resume' : 'Read Aloud'}</span>
-            </button>
-
-            {playbackStatus !== 'idle' && (
               <button
-                onClick={stopAudio}
+                onClick={() => setShowVelocityModal(true)}
                 className="btn btn-secondary"
-                title="Stop Narration"
-                style={{ padding: '5px 7px' }}
-              >
-                <Square size={12} />
-              </button>
-            )}
-
-            <select
-              value={ttsSpeed}
-              onChange={(e) => setTtsSpeed(parseFloat(e.target.value))}
-              className="form-select"
-              style={{ padding: '4px 6px', fontSize: '11px', height: '28px', border: 'none', background: 'transparent' }}
-              title="Narration Speed"
-            >
-              <option value={0.75}>0.75×</option>
-              <option value={1.0}>1.0×</option>
-              <option value={1.25}>1.25×</option>
-            </select>
-
-            <select
-              value={selectedEngine}
-              onChange={(e) => {
-                const eng = e.target.value as TtsEngine;
-                setSelectedEngine(eng);
-                localStorage.setItem('selected_tts_engine', eng);
-              }}
-              className="form-select"
-              style={{ padding: '4px 6px', fontSize: '11px', height: '28px', border: 'none', background: 'transparent', maxWidth: '130px' }}
-              title="Voice Engine"
-            >
-              <option value="cloud-natural">Cloud Natural</option>
-              <option value="azure-neural">Azure Neural</option>
-              <option value="system">System Voice</option>
-            </select>
-
-            {selectedEngine === 'system' && systemVoices.length > 0 && (
-              <select
-                value={selectedSystemVoice}
-                onChange={(e) => {
-                  setSelectedSystemVoice(e.target.value);
-                  localStorage.setItem('selected_system_voice', e.target.value);
-                }}
-                className="form-select"
-                style={{ padding: '4px 6px', fontSize: '11px', height: '28px', border: 'none', background: 'transparent', maxWidth: '120px' }}
-                title="Select System Voice"
-              >
-                {systemVoices.map(v => (
-                  <option key={v.id} value={v.name}>
-                    {v.name.replace(/Microsoft |Google |Apple /g, '').slice(0, 16)}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {/* ALS-004: Regional Dialect & Accent Toggle */}
-            <select
-              value={regionalAccent}
-              onChange={(e) => {
-                const next = e.target.value as RegionalAccent;
-                setRegionalAccent(next);
-                saveStoredAccent(next);
-              }}
-              className="form-select"
-              style={{ padding: '4px 6px', fontSize: '11px', height: '28px', border: 'none', background: 'transparent' }}
-              title="Regional Dialect & Accent (ALS-004): Standard Northern Mandarin, Beijing Erhua, or Taiwanese Mandarin"
-            >
-              <option value="standard">🏛️ 普通话</option>
-              <option value="beijing_erhua">🏮 北京儿化</option>
-              <option value="taiwan">🍵 台湾华语</option>
-            </select>
-
-            {/* ALS-001: Hover-to-Play Audio Narration */}
-            <button
-              onClick={() => {
-                const next = !hoverAudioEnabled;
-                setHoverAudioEnabled(next);
-                localStorage.setItem('moyun_hover_audio', String(next));
-              }}
-              className={`btn ${hoverAudioEnabled ? 'btn-bamboo' : 'btn-secondary'}`}
-              style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
-              title={hoverAudioEnabled ? 'Hover Audio Enabled: Hover over any word to speak it' : 'Enable Hover-to-Play Audio (ALS-001)'}
-            >
-              <Volume2 size={12} /> {hoverAudioEnabled ? 'Hover: On' : 'Hover: Off'}
-            </button>
-          </div>
-
-          {/* Cluster 3: View & Document Tools */}
-          <div className="reading-toolbar-group">
-            {/* Layout Orientation */}
-            <button
-              onClick={() => setIsVertical(v => !v)}
-              className="btn btn-secondary"
-              style={{ padding: '5px 10px', fontSize: '12px' }}
-              title={isVertical ? 'Switch to Horizontal Reading' : 'Switch to Traditional Vertical Columns'}
-            >
-              <BookOpen size={13} /> {isVertical ? 'Horizontal' : 'Vertical'}
-            </button>
-
-            {/* TRC-001: Script Preference Toggle (简 / 繁) */}
-            <button
-              onClick={() => {
-                const next: ChineseScript = scriptPreference === 'simplified' ? 'traditional' : 'simplified';
-                setScriptPreference(next);
-                localStorage.setItem('moyun_script_preference', next);
-              }}
-              className={`btn ${scriptPreference === 'traditional' ? 'btn-bamboo' : 'btn-secondary'}`}
-              style={{ padding: '5px 9px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
-              title="Traditional Character Toggle (TRC-001): Switch between 简体字 and 繁體字"
-            >
-              <Languages size={13} /> {scriptPreference === 'traditional' ? '繁體' : '简体'}
-            </button>
-
-            {/* TRC-003: Tone Color Coding */}
-            <button
-              onClick={() => {
-                const nextMode: ToneColorMode = toneColorMode === 'off' ? 'pinyin' : toneColorMode === 'pinyin' ? 'both' : 'off';
-                setToneColorMode(nextMode);
-                localStorage.setItem('moyun_tone_color_mode', nextMode);
-              }}
-              className={`btn ${toneColorMode !== 'off' ? 'btn-bamboo' : 'btn-secondary'}`}
-              style={{ padding: '5px 9px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}
-              title="Tone Color Coding (TRC-003): Off | Pinyin Only | Hanzi & Pinyin"
-            >
-              <Palette size={13} /> Tones: {toneColorMode === 'off' ? 'Off' : toneColorMode === 'pinyin' ? 'Pinyin' : 'Both'}
-            </button>
-
-            {/* TRC-004: Pinyin Visibility & Adaptive Mode */}
-            <div style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius-sm)' }}>
-              <button
-                onClick={() => setShowPinyin(p => !p)}
                 style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--text-primary)',
-                  padding: '5px 8px',
                   fontSize: '12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  cursor: 'pointer'
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-pill)',
+                  gap: '4px'
                 }}
-                title="Toggle Pinyin visibility"
+                title="Reading Velocity & Fluency Analytics (GTU-002): View CPM progression & HSK benchmarks"
               >
-                {showPinyin ? <EyeOff size={13} /> : <Eye size={13} />} Pinyin
-              </button>
-              {showPinyin && (
-                <select
-                  value={pinyinDisplayMode}
-                  onChange={(e) => {
-                    const mode = e.target.value as any;
-                    setPinyinDisplayMode(mode);
-                    localStorage.setItem('moyun_pinyin_display_mode', mode);
-                  }}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    borderLeft: '1px solid var(--border-subtle)',
-                    color: 'var(--text-secondary)',
-                    padding: '4px 6px',
-                    fontSize: '11px',
-                    outline: 'none',
-                    cursor: 'pointer'
-                  }}
-                  title="Pinyin Display Mode (TRC-004)"
-                >
-                  <option value="all">All</option>
-                  <option value="adaptive">Smart (Fade SRS)</option>
-                  <option value="level">By HSK Level</option>
-                </select>
-              )}
-              {showPinyin && (
-                <select
-                  value={phoneticNotation}
-                  onChange={(e) => {
-                    const notation = e.target.value as 'pinyin' | 'zhuyin';
-                    setPhoneticNotation(notation);
-                    localStorage.setItem('moyun_phonetic_notation', notation);
-                  }}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    borderLeft: '1px solid var(--border-subtle)',
-                    color: 'var(--text-secondary)',
-                    padding: '4px 6px',
-                    fontSize: '11px',
-                    outline: 'none',
-                    cursor: 'pointer'
-                  }}
-                  title="Phonetic Script: Latin Pinyin vs Zhuyin Bopomofo (TRC-002)"
-                >
-                  <option value="pinyin">拼 Pinyin</option>
-                  <option value="zhuyin">注 Zhuyin (注音)</option>
-                </select>
-              )}
-              {showPinyin && pinyinDisplayMode === 'level' && (
-                <select
-                  value={hidePinyinLevel}
-                  onChange={(e) => setHidePinyinLevel(parseInt(e.target.value, 10))}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    borderLeft: '1px solid var(--border-subtle)',
-                    color: 'var(--text-secondary)',
-                    padding: '4px 6px',
-                    fontSize: '11px',
-                    outline: 'none',
-                    cursor: 'pointer'
-                  }}
-                  title="Hide Pinyin for specified HSK levels"
-                >
-                  <option value={1}>Hide HSK 1</option>
-                  <option value={2}>Hide HSK 1-2</option>
-                  <option value={3}>Hide HSK 1-3</option>
-                  <option value={4}>Hide HSK 1-4</option>
-                </select>
-              )}
-            </div>
-
-            {/* Grammar Highlighting */}
-            <button
-              onClick={() => setHighlightGrammar(h => !h)}
-              className={`btn ${highlightGrammar ? 'btn-bamboo' : 'btn-secondary'}`}
-              style={{ padding: '5px 10px', fontSize: '12px' }}
-              title="Highlight HSK Grammar Patterns"
-            >
-              <Sparkles size={13} /> Grammar
-            </button>
-
-            {/* TRC-009: Cultural Context AI Notes */}
-            <button
-              onClick={() => setShowCulturalNotesModal(true)}
-              className={`btn ${detectedCulturalNotes.length > 0 ? 'btn-bamboo' : 'btn-secondary'}`}
-              style={{ padding: '5px 9px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
-              title={`Cultural Context AI Notes (TRC-009): ${detectedCulturalNotes.length} cultural nuances detected`}
-            >
-              <span>🏮</span> Culture {detectedCulturalNotes.length > 0 && `(${detectedCulturalNotes.length})`}
-            </button>
-
-            {/* SRS-007: Automated Cloze Mode Button */}
-            <button
-              onClick={() => setClozeModeEnabled(prev => !prev)}
-              className={`btn ${clozeModeEnabled ? 'btn-bamboo' : 'btn-secondary'}`}
-              style={{ padding: '5px 9px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
-              title={clozeModeEnabled ? 'Cloze Mode Active: Click blanks to practice due SRS words' : `Enable Cloze Mode (SRS-007): ${uniqueDueCount} due cards in this story`}
-            >
-              <HelpCircle size={13} /> Cloze ({uniqueDueCount})
-            </button>
-
-            {/* TRC-007: Top 500 Frequency Toggle & Analytics */}
-            <div style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius-sm)' }}>
-              <button
-                onClick={() => setShowFrequencyOverlay(prev => !prev)}
-                className={`btn ${showFrequencyOverlay ? 'btn-bamboo' : 'btn-secondary'}`}
-                style={{ padding: '5px 8px', fontSize: '12px', border: 'none', borderRadius: '0' }}
-                title="Toggle Top 500 Hanzi Highlighting (TRC-007)"
-              >
-                <BarChart3 size={13} /> Top 500: {showFrequencyOverlay ? 'On' : 'Off'}
-              </button>
-              <button
-                onClick={() => setShowFrequencyModal(true)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  borderLeft: '1px solid var(--border-subtle)',
-                  color: 'var(--accent-bamboo)',
-                  padding: '5px 7px',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-                title="Click to view full frequency coverage analytics"
-              >
-                {frequencyStats.coveragePercent}%
+                <Zap size={12} color="var(--accent-gold)" /> {currentCPM} CPM
               </button>
             </div>
 
-            {/* GTU-008: Direct Print Story / Export PDF */}
-            <button
-              onClick={() => window.print()}
-              className="btn btn-secondary"
-              style={{ padding: '5px 9px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
-              title="Print Story / Export PDF (GTU-008)"
-            >
-              <Printer size={13} /> Print / PDF
-            </button>
-
-            {/* Action Tools Dropdown Menu */}
-            <div className="toolbar-menu-container" ref={actionsMenuRef}>
+            {/* Central Audio Player Bar */}
+            <div className="reading-player-bar" style={{ borderRadius: 'var(--radius-pill)', padding: '4px 8px' }}>
               <button
-                onClick={() => setShowActionsMenu(prev => !prev)}
-                className="btn btn-secondary"
-                style={{ padding: '5px 10px', fontSize: '12px' }}
-                title="Story actions and adjustments"
+                onClick={() => {
+                  if (playbackStatus === 'playing') {
+                    pauseAudio();
+                  } else if (playbackStatus === 'paused') {
+                    resumeAudio();
+                  } else {
+                    startAudio();
+                  }
+                }}
+                className={`btn ${playbackStatus === 'playing' ? 'btn-bamboo' : playbackStatus === 'paused' ? 'btn-primary' : 'btn-primary'}`}
+                title={playbackStatus === 'playing' ? 'Pause Narration' : playbackStatus === 'paused' ? 'Resume Narration' : 'Read Aloud with Natural Pronunciation'}
+                style={{ padding: '6px 14px', fontSize: '13px', borderRadius: 'var(--radius-pill)' }}
               >
-                <MoreHorizontal size={14} /> Actions <ChevronDown size={12} />
+                {playbackStatus === 'playing' ? <Pause size={14} /> : <Play size={14} />} 
+                <span>{playbackStatus === 'playing' ? 'Pause' : playbackStatus === 'paused' ? 'Resume' : 'Read Aloud'}</span>
               </button>
 
-              {showActionsMenu && (
-                <div className="toolbar-menu-popover">
-                  {/* AIM-004: Real-time Difficulty Scaler (0ms In-Memory Simplifier) */}
-                  <div style={{ padding: '4px 0 8px 0', borderBottom: '1px solid var(--border-subtle)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                        Instant HSK Scaler (0ms)
-                      </span>
-                      <span style={{ fontSize: '11px', color: 'var(--accent-gold)', fontWeight: 600 }}>
-                        HSK {realTimeHsk} {substitutions.length > 0 && `(${substitutions.length} swapped)`}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={1}
-                      max={6}
-                      value={realTimeHsk}
-                      onChange={(e) => handleInstantScale(parseInt(e.target.value, 10))}
-                      style={{ width: '100%', cursor: 'pointer' }}
-                      title="Instant Vocabulary Difficulty Slider (AIM-004)"
-                    />
-                    {substitutions.length > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
-                        <button
-                          onClick={handleRevertScaling}
-                          style={{ background: 'none', border: 'none', color: 'var(--accent-seal)', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px' }}
-                        >
-                          <RotateCcw size={10} /> Revert to Original
-                        </button>
-                      </div>
-                    )}
-                  </div>
+              {playbackStatus !== 'idle' && (
+                <button
+                  onClick={stopAudio}
+                  className="btn btn-secondary"
+                  title="Stop Narration"
+                  style={{ padding: '6px 8px', borderRadius: 'var(--radius-pill)' }}
+                >
+                  <Square size={12} />
+                </button>
+              )}
 
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '6px 0 2px 0' }}>
-                    AI Model Adjustments
-                  </div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button
-                      onClick={() => {
-                        onScaleDifficulty('simplify');
-                        setShowActionsMenu(false);
-                      }}
-                      className="btn btn-secondary"
-                      style={{ flex: 1, padding: '5px 8px', fontSize: '12px' }}
-                      title="Rewrite story via AI (HSK - 1)"
-                    >
-                      <TrendingDown size={13} /> AI Simplify
-                    </button>
-                    <button
-                      onClick={() => {
-                        onScaleDifficulty('harder');
-                        setShowActionsMenu(false);
-                      }}
-                      className="btn btn-secondary"
-                      style={{ flex: 1, padding: '5px 8px', fontSize: '12px' }}
-                      title="Rewrite story via AI (HSK + 1)"
-                    >
-                      <TrendingUp size={13} /> AI Harder
-                    </button>
-                  </div>
-
-                  <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '4px 0' }} />
-
-                  <button
-                    onClick={() => {
-                      onSaveStory();
-                      setShowActionsMenu(false);
-                    }}
-                    className="btn btn-secondary"
-                    style={{ justifyContent: 'flex-start', padding: '6px 10px', fontSize: '12px' }}
-                  >
-                    <Save size={13} /> Save to Story Library
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowSubtitleModal(true);
-                      setShowActionsMenu(false);
-                    }}
-                    className="btn btn-secondary"
-                    style={{ justifyContent: 'flex-start', padding: '6px 10px', fontSize: '12px' }}
-                  >
-                    <Subtitles size={13} /> Export Subtitles (.srt / .vtt)
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowShareModal(true);
-                      setShowActionsMenu(false);
-                    }}
-                    className="btn btn-secondary"
-                    style={{ justifyContent: 'flex-start', padding: '6px 10px', fontSize: '12px' }}
-                    title="Peer-to-Peer Story Sharing (GTU-005): Export .moyun.json or QR Code"
-                  >
-                    <Share2 size={13} /> Share Story (.moyun.json / QR)
-                  </button>
-                  <button
-                    onClick={() => {
-                      window.print();
-                      setShowActionsMenu(false);
-                    }}
-                    className="btn btn-secondary"
-                    style={{ justifyContent: 'flex-start', padding: '6px 10px', fontSize: '12px' }}
-                  >
-                    <Printer size={13} /> Print Story / Export PDF
-                  </button>
+              {playbackStatus === 'playing' && (
+                <div className="audio-eq-bars" title="Narration actively playing">
+                  <i></i><i></i><i></i><i></i><i></i>
                 </div>
               )}
+
+              {/* Speed selector */}
+              <select
+                value={ttsSpeed}
+                onChange={(e) => setTtsSpeed(parseFloat(e.target.value))}
+                className="form-select"
+                style={{ padding: '4px 8px', fontSize: '12px', height: '30px', border: 'none', background: 'transparent' }}
+                title="Narration Playback Speed"
+              >
+                <option value={0.75}>0.75×</option>
+                <option value={1.0}>1.0×</option>
+                <option value={1.25}>1.25×</option>
+              </select>
+
+              {/* Voice & Dialect Settings Dropdown Popover */}
+              <div className="toolbar-menu-container" ref={audioMenuRef}>
+                <button
+                  onClick={() => setShowAudioMenu(prev => !prev)}
+                  className={`btn ${hoverAudioEnabled || regionalAccent !== 'standard' ? 'btn-bamboo' : 'btn-secondary'}`}
+                  style={{ padding: '5px 10px', fontSize: '12px', borderRadius: 'var(--radius-pill)', gap: '4px' }}
+                  title="Configure Voice Engine, Dialect/Accent, and Hover Audio"
+                >
+                  <Volume2 size={13} />
+                  <span>Voice & Accent</span>
+                  <ChevronDown size={11} />
+                </button>
+
+                {showAudioMenu && (
+                  <div className="toolbar-menu-popover" style={{ width: '270px', padding: '14px', gap: '12px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '6px' }}>
+                      Audio & Voice Settings
+                    </div>
+
+                    {/* Regional Accent with clear English */}
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                        Regional Dialect / Accent:
+                      </label>
+                      <select
+                        value={regionalAccent}
+                        onChange={(e) => {
+                          const next = e.target.value as RegionalAccent;
+                          setRegionalAccent(next);
+                          saveStoredAccent(next);
+                        }}
+                        className="form-select"
+                        style={{ width: '100%', fontSize: '12px' }}
+                      >
+                        <option value="standard">Standard Mandarin (普通话)</option>
+                        <option value="beijing_erhua">Beijing Dialect (北京儿化音)</option>
+                        <option value="taiwan">Taiwanese Mandarin (台湾国语)</option>
+                      </select>
+                    </div>
+
+                    {/* Voice Engine */}
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                        Voice Engine:
+                      </label>
+                      <select
+                        value={selectedEngine}
+                        onChange={(e) => {
+                          const eng = e.target.value as TtsEngine;
+                          setSelectedEngine(eng);
+                          localStorage.setItem('selected_tts_engine', eng);
+                        }}
+                        className="form-select"
+                        style={{ width: '100%', fontSize: '12px' }}
+                      >
+                        <option value="cloud-natural">Cloud Natural (High Quality)</option>
+                        <option value="azure-neural">Azure Neural</option>
+                        <option value="system">System Device Voice</option>
+                      </select>
+                    </div>
+
+                    {selectedEngine === 'system' && systemVoices.length > 0 && (
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                          Device Voice:
+                        </label>
+                        <select
+                          value={selectedSystemVoice}
+                          onChange={(e) => {
+                            setSelectedSystemVoice(e.target.value);
+                            localStorage.setItem('selected_system_voice', e.target.value);
+                          }}
+                          className="form-select"
+                          style={{ width: '100%', fontSize: '12px' }}
+                        >
+                          {systemVoices.map(v => (
+                            <option key={v.id} value={v.name}>
+                              {v.name.replace(/Microsoft |Google |Apple /g, '').slice(0, 20)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Hover Audio Toggle */}
+                    <div style={{ paddingTop: '6px', borderTop: '1px solid var(--border-subtle)' }}>
+                      <button
+                        onClick={() => {
+                          const next = !hoverAudioEnabled;
+                          setHoverAudioEnabled(next);
+                          localStorage.setItem('moyun_hover_audio', String(next));
+                        }}
+                        className={`btn ${hoverAudioEnabled ? 'btn-bamboo' : 'btn-secondary'}`}
+                        style={{ width: '100%', justifyContent: 'center', fontSize: '12px', padding: '6px 10px' }}
+                      >
+                        <Volume2 size={13} />
+                        {hoverAudioEnabled ? 'Hover-to-Speak: ON' : 'Hover-to-Speak: OFF'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Focus Immersion Mode */}
-            <button
-              onClick={() => setIsFocusMode(true)}
-              className="btn btn-secondary"
-              style={{ padding: '5px 8px' }}
-              title="Full Screen Focus Immersion"
-            >
-              <Maximize2 size={13} />
-            </button>
+            {/* Right: Fullscreen Focus button */}
+            <div>
+              <button
+                onClick={() => setIsFocusMode(true)}
+                className="btn btn-secondary"
+                style={{ padding: '6px 12px', fontSize: '12px', borderRadius: 'var(--radius-pill)', gap: '6px' }}
+                title="Enter Distraction-Free Fullscreen Reading Mode"
+              >
+                <Maximize2 size={13} /> Focus Mode
+              </button>
+            </div>
+          </div>
+
+          {/* Tier 2: Reading Display Options & Learning Tools */}
+          <div className="reading-toolbar-tier2" style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '8px',
+            paddingTop: '8px',
+            borderTop: '1px solid var(--border-subtle)'
+          }}>
+
+            {/* Segment A: Text Display Controls */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              
+              {/* Pinyin Toggle with options */}
+              <div style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius-pill)', overflow: 'hidden' }}>
+                <button
+                  onClick={() => setShowPinyin(p => !p)}
+                  style={{
+                    background: showPinyin ? 'var(--bg-surface-hover)' : 'transparent',
+                    border: 'none',
+                    color: showPinyin ? 'var(--text-primary)' : 'var(--text-muted)',
+                    padding: '5px 10px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    cursor: 'pointer'
+                  }}
+                  title={showPinyin ? 'Hide Pinyin ruby annotations' : 'Show Pinyin ruby annotations'}
+                >
+                  {showPinyin ? <Eye size={13} /> : <EyeOff size={13} />}
+                  <span>Pinyin</span>
+                </button>
+
+                {showPinyin && (
+                  <select
+                    value={pinyinDisplayMode}
+                    onChange={(e) => {
+                      const mode = e.target.value as any;
+                      setPinyinDisplayMode(mode);
+                      localStorage.setItem('moyun_pinyin_display_mode', mode);
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      borderLeft: '1px solid var(--border-subtle)',
+                      color: 'var(--text-secondary)',
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      outline: 'none',
+                      cursor: 'pointer'
+                    }}
+                    title="Pinyin Display Mode (All Words, Smart Fade, or by HSK Level)"
+                  >
+                    <option value="all">All Words</option>
+                    <option value="adaptive">Smart (Fade Learned)</option>
+                    <option value="level">By HSK Level</option>
+                  </select>
+                )}
+
+                {showPinyin && (
+                  <select
+                    value={phoneticNotation}
+                    onChange={(e) => {
+                      const notation = e.target.value as 'pinyin' | 'zhuyin';
+                      setPhoneticNotation(notation);
+                      localStorage.setItem('moyun_phonetic_notation', notation);
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      borderLeft: '1px solid var(--border-subtle)',
+                      color: 'var(--text-secondary)',
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      outline: 'none',
+                      cursor: 'pointer'
+                    }}
+                    title="Phonetic Script: Latin Pinyin or Zhuyin Bopomofo"
+                  >
+                    <option value="pinyin">Pinyin (拼音)</option>
+                    <option value="zhuyin">Zhuyin (注音)</option>
+                  </select>
+                )}
+              </div>
+
+              {/* TRC-001: Script Preference Toggle (Simplified vs Traditional) with clear English */}
+              <button
+                onClick={() => {
+                  const next: ChineseScript = scriptPreference === 'simplified' ? 'traditional' : 'simplified';
+                  setScriptPreference(next);
+                  localStorage.setItem('moyun_script_preference', next);
+                }}
+                className={`btn ${scriptPreference === 'traditional' ? 'btn-bamboo' : 'btn-secondary'}`}
+                style={{ padding: '5px 11px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: 'var(--radius-pill)' }}
+                title="Switch between Simplified (简体) and Traditional (繁體) Chinese characters"
+              >
+                <Languages size={13} />
+                <span>Script: {scriptPreference === 'traditional' ? 'Traditional (繁)' : 'Simplified (简)'}</span>
+              </button>
+
+              {/* TRC-003: Tone Color Coding */}
+              <button
+                onClick={() => {
+                  const nextMode: ToneColorMode = toneColorMode === 'off' ? 'pinyin' : toneColorMode === 'pinyin' ? 'both' : 'off';
+                  setToneColorMode(nextMode);
+                  localStorage.setItem('moyun_tone_color_mode', nextMode);
+                }}
+                className={`btn ${toneColorMode !== 'off' ? 'btn-bamboo' : 'btn-secondary'}`}
+                style={{ padding: '5px 11px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: 'var(--radius-pill)' }}
+                title="Tone Color Coding (TRC-003): Off | Pinyin Only | Hanzi & Pinyin"
+              >
+                <Palette size={13} />
+                <span>Tones: {toneColorMode === 'off' ? 'Off' : toneColorMode === 'pinyin' ? 'Pinyin' : 'Both'}</span>
+              </button>
+            </div>
+
+            {/* Segment B: Learning Helpers & Tools Dropdown */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              
+              {/* Grammar Highlighting */}
+              <button
+                onClick={() => setHighlightGrammar(h => !h)}
+                className={`btn ${highlightGrammar ? 'btn-bamboo' : 'btn-secondary'}`}
+                style={{ padding: '5px 10px', fontSize: '12px', borderRadius: 'var(--radius-pill)' }}
+                title="Highlight grammar patterns in the story"
+              >
+                <Sparkles size={13} /> Grammar
+              </button>
+
+              {/* Cultural Context Notes */}
+              {detectedCulturalNotes.length > 0 && (
+                <button
+                  onClick={() => setShowCulturalNotesModal(true)}
+                  className="btn btn-secondary"
+                  style={{ padding: '5px 10px', fontSize: '12px', borderRadius: 'var(--radius-pill)', gap: '4px' }}
+                  title="View detected cultural context notes and idiom backstories"
+                >
+                  <span>🏮</span> Culture ({detectedCulturalNotes.length})
+                </button>
+              )}
+
+              {/* Cloze Practice Button */}
+              {uniqueDueCount > 0 && (
+                <button
+                  onClick={() => setClozeModeEnabled(prev => !prev)}
+                  className={`btn ${clozeModeEnabled ? 'btn-bamboo' : 'btn-secondary'}`}
+                  style={{ padding: '5px 10px', fontSize: '12px', borderRadius: 'var(--radius-pill)', gap: '4px' }}
+                  title="Toggle fill-in-the-blank Cloze review mode for your due flashcards"
+                >
+                  <HelpCircle size={13} /> Cloze ({uniqueDueCount})
+                </button>
+              )}
+
+              {/* Actions & Tools Dropdown Menu */}
+              <div className="toolbar-menu-container" ref={actionsMenuRef}>
+                <button
+                  onClick={() => setShowActionsMenu(prev => !prev)}
+                  className="btn btn-secondary"
+                  style={{ padding: '5px 11px', fontSize: '12px', borderRadius: 'var(--radius-pill)' }}
+                  title="More actions and learning tools"
+                >
+                  <MoreHorizontal size={14} /> Tools <ChevronDown size={11} />
+                </button>
+
+                {showActionsMenu && (
+                  <div className="toolbar-menu-popover" style={{ width: '260px' }}>
+                    {/* AIM-004: Real-time Difficulty Scaler */}
+                    <div style={{ padding: '4px 0 8px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                          Vocabulary Level Scaler
+                        </span>
+                        <span style={{ fontSize: '11px', color: 'var(--accent-seal)', fontWeight: 700 }}>
+                          HSK {realTimeHsk}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={1}
+                        max={6}
+                        value={realTimeHsk}
+                        onChange={(e) => handleInstantScale(parseInt(e.target.value, 10))}
+                        style={{ width: '100%', cursor: 'pointer' }}
+                        title="Adjust story vocabulary level in real time"
+                      />
+                      {substitutions.length > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                          <button
+                            onClick={handleRevertScaling}
+                            style={{ background: 'none', border: 'none', color: 'var(--accent-seal)', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px' }}
+                          >
+                            <RotateCcw size={10} /> Reset ({substitutions.length} words swapped)
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '6px', margin: '6px 0' }}>
+                      <button
+                        onClick={() => {
+                          onScaleDifficulty('simplify');
+                          setShowActionsMenu(false);
+                        }}
+                        className="btn btn-secondary"
+                        style={{ flex: 1, padding: '5px 8px', fontSize: '11px' }}
+                        title="Rewrite story via AI (HSK - 1)"
+                      >
+                        <TrendingDown size={12} /> AI Simplify
+                      </button>
+                      <button
+                        onClick={() => {
+                          onScaleDifficulty('harder');
+                          setShowActionsMenu(false);
+                        }}
+                        className="btn btn-secondary"
+                        style={{ flex: 1, padding: '5px 8px', fontSize: '11px' }}
+                        title="Rewrite story via AI (HSK + 1)"
+                      >
+                        <TrendingUp size={12} /> AI Harder
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        onSaveStory();
+                        setShowActionsMenu(false);
+                      }}
+                      className="btn btn-secondary"
+                      style={{ justifyContent: 'flex-start', padding: '6px 10px', fontSize: '12px' }}
+                    >
+                      <Save size={13} /> Save to Story Library
+                    </button>
+
+                    {/* Top 500 Frequency Toggle */}
+                    <button
+                      onClick={() => {
+                        setShowFrequencyOverlay(prev => !prev);
+                        setShowActionsMenu(false);
+                      }}
+                      className="btn btn-secondary"
+                      style={{ justifyContent: 'flex-start', padding: '6px 10px', fontSize: '12px' }}
+                    >
+                      <BarChart3 size={13} /> Top 500 Words: {showFrequencyOverlay ? 'Hide' : 'Highlight'}
+                    </button>
+
+                    {/* Pre-cache offline audio */}
+                    <button
+                      onClick={() => {
+                        setShowPrecacheModal(true);
+                        setShowActionsMenu(false);
+                      }}
+                      className="btn btn-secondary"
+                      style={{ justifyContent: 'flex-start', padding: '6px 10px', fontSize: '12px' }}
+                      title="Download audio pack for airplane or offline mode"
+                    >
+                      <span>✈️</span> Pre-cache Offline Audio
+                    </button>
+
+                    {/* Export Subtitles */}
+                    <button
+                      onClick={() => {
+                        setShowSubtitleModal(true);
+                        setShowActionsMenu(false);
+                      }}
+                      className="btn btn-secondary"
+                      style={{ justifyContent: 'flex-start', padding: '6px 10px', fontSize: '12px' }}
+                    >
+                      <Subtitles size={13} /> Export Subtitles (.srt / .vtt)
+                    </button>
+
+                    {/* Share Story */}
+                    <button
+                      onClick={() => {
+                        setShowShareModal(true);
+                        setShowActionsMenu(false);
+                      }}
+                      className="btn btn-secondary"
+                      style={{ justifyContent: 'flex-start', padding: '6px 10px', fontSize: '12px' }}
+                    >
+                      <Share2 size={13} /> Share Story (.moyun.json / QR)
+                    </button>
+
+                    {/* Print / PDF */}
+                    <button
+                      onClick={() => {
+                        window.print();
+                        setShowActionsMenu(false);
+                      }}
+                      className="btn btn-secondary"
+                      style={{ justifyContent: 'flex-start', padding: '6px 10px', fontSize: '12px' }}
+                    >
+                      <Printer size={13} /> Print Story / Export PDF
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1115,20 +1158,19 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
         </div>
       </div>
 
-      {/* Story Title (Web Screen View) */}
-      <div className="print-hide">
-        <h2 className="story-header-title">{convertScript(storyTitle || 'Mandarin Graded Story', scriptPreference)}</h2>
-      </div>
+      {/* Story Reading Card: Book-like tactile containment */}
+      <div className="story-reading-card">
+        {/* Story Title (Web Screen View) */}
+        <div className="print-hide">
+          <h2 className="story-header-title">{convertScript(storyTitle || 'Mandarin Graded Story', scriptPreference)}</h2>
+        </div>
 
-      {/* Main Reading Flow: Paragraph-by-Paragraph with TRC-010 Translation, TRC-003 Tone Colors & ALS-001 Hover Audio */}
-      <div 
-        className={`${isVertical ? 'story-content-vertical' : 'story-content-horizontal'} ${isFocusMode ? 'focus-mode-body' : ''}`}
-        style={{ fontSize: isFocusMode ? `${focusFontSize}px` : undefined }}
-      >
-        {paragraphs.map(para => {
-          const isParaRevealed = revealedParagraphs[para.id];
-
-          return (
+        {/* Main Reading Flow: Paragraph-by-Paragraph with TRC-003 Tone Colors & ALS-001 Hover Audio */}
+        <div 
+          className={`story-content-horizontal ${isFocusMode ? 'focus-mode-body' : ''} ${!showPinyin ? 'pinyin-hidden' : ''}`}
+          style={{ fontSize: isFocusMode ? `${focusFontSize}px` : undefined }}
+        >
+          {paragraphs.map(para => (
             <div key={para.id} className="story-paragraph">
               {para.sentences.map(sentence => {
                 const isPacing = activePacingSentence === sentence.id;
@@ -1144,6 +1186,19 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
                       {sentence.tokens.map((tokenObj, idx) => {
                         const token = tokenObj.item;
                         const grammarMatch = tokenObj.grammarMatch;
+
+                        // Non-Chinese punctuation / symbol / whitespace renders naturally inline
+                        if (token.isNonChinese) {
+                          if (token.character.includes('\n')) {
+                            return <br key={idx} />;
+                          }
+                          return (
+                            <span key={idx} className="text-punctuation">
+                              {token.character}
+                            </span>
+                          );
+                        }
+
                         const hideForLevel = pinyinDisplayMode === 'level' && token.hsk_level && !isNaN(parseInt(token.hsk_level, 10)) && parseInt(token.hsk_level, 10) <= hidePinyinLevel;
 
                         // SRS-007: Automated Cloze Mode Check
@@ -1175,7 +1230,7 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
                         // TRC-004: Adaptive Pinyin Fading
                         const isMasteredInSRS = masteredChars.has(token.character);
                         const isAdaptiveFaded = pinyinDisplayMode === 'adaptive' && isMasteredInSRS;
-                        const displayPinyin = showPinyin && !hideForLevel && token.pinyin && !token.isNonChinese;
+                        const displayPinyin = showPinyin && !hideForLevel && token.pinyin;
 
                         const polyphone = checkPolyphone(token.character);
 
@@ -1252,33 +1307,8 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
                   </React.Fragment>
                 );
               })}
-
-              {/* TRC-010: Contextual Paragraph Translation Toggle */}
-              {!isVertical && (
-                <div className="paragraph-actions print-hide">
-                  <button
-                    onClick={() => setRevealedParagraphs(prev => ({ ...prev, [para.id]: !prev[para.id] }))}
-                    className="paragraph-translate-btn"
-                    title="Toggle paragraph translation"
-                  >
-                    <Languages size={11} /> {isParaRevealed ? 'Hide Paragraph Translation' : 'Paragraph Translation'}
-                  </button>
-                </div>
-              )}
-
-              {isParaRevealed && (
-                <div className="paragraph-translation-card print-hide">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, fontSize: '11px', color: 'var(--accent-gold)', marginBottom: '4px', textTransform: 'uppercase' }}>
-                    <Languages size={13} /> Paragraph Context
-                  </div>
-                  <div>
-                    {para.text}
-                  </div>
-                </div>
-              )}
             </div>
-          );
-        })}
+          ))}
 
         {/* GTU-008: Printable Vocabulary Glossary Appendix (Only visible in Print / PDF Export) */}
         <div className="print-only print-glossary-section">
@@ -1309,6 +1339,7 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
             Generated via Moyun 墨韵 — Offline-First Mandarin Graded Reader & Spoken Studio
           </div>
         </div>
+      </div>
       </div>
 
       {/* HSK Grammar Pattern Breakdown Panel (when grammar toggle is active) */}
@@ -1526,107 +1557,15 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
       />
 
       {/* SRS-007: Story Cloze Test Recall Modal */}
-      {activeClozeCard && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.65)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          padding: '16px'
-        }}>
-          <div style={{
-            backgroundColor: 'var(--bg-surface)',
-            borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--border-subtle)',
-            padding: '24px',
-            maxWidth: '440px',
-            width: '100%',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
-            textAlign: 'center'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent-gold)' }}>
-                📝 Active Recall Cloze (SRS-007)
-              </span>
-              <button
-                onClick={() => setActiveClozeCard(null)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
-                title="Close"
-              >
-                ✕
-              </button>
-            </div>
+      <StoryClozeModal
+        card={activeClozeCard}
+        onClose={() => setActiveClozeCard(null)}
+        options={clozeOptions}
+        feedback={clozeFeedback}
+        onAnswer={handleClozeAnswer}
+        scriptPreference={scriptPreference}
+      />
 
-            <div style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
-              "{activeClozeCard.definition}"
-            </div>
-            <div style={{ fontSize: '14px', fontFamily: 'var(--font-mono)', color: 'var(--accent-gold)', marginBottom: '20px' }}>
-              Pinyin: {activeClozeCard.pinyin}
-            </div>
-
-            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-              Which character completes the sentence?
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px' }}>
-              {clozeOptions.map(option => {
-                const isSelected = clozeFeedback[activeClozeCard.character] !== undefined;
-                let btnBg = 'var(--bg-panel)';
-                let btnBorder = 'var(--border-subtle)';
-                let textColor = 'var(--text-primary)';
-
-                if (isSelected) {
-                  if (option === activeClozeCard.character) {
-                    btnBg = 'rgba(74, 222, 128, 0.2)';
-                    btnBorder = 'var(--accent-bamboo)';
-                    textColor = 'var(--accent-bamboo)';
-                  } else {
-                    btnBg = 'rgba(239, 68, 68, 0.1)';
-                    textColor = 'var(--text-muted)';
-                  }
-                }
-
-                return (
-                  <button
-                    key={option}
-                    onClick={() => handleClozeAnswer(option)}
-                    disabled={isSelected}
-                    style={{
-                      padding: '16px 8px',
-                      borderRadius: 'var(--radius-sm)',
-                      backgroundColor: btnBg,
-                      border: `2px solid ${btnBorder}`,
-                      fontSize: '28px',
-                      fontFamily: 'var(--font-serif-zh)',
-                      color: textColor,
-                      cursor: isSelected ? 'default' : 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    {convertScript(option, scriptPreference)}
-                  </button>
-                );
-              })}
-            </div>
-
-            {clozeFeedback[activeClozeCard.character] && (
-              <div style={{
-                fontSize: '13px',
-                fontWeight: 600,
-                color: clozeFeedback[activeClozeCard.character] === 'correct' ? 'var(--accent-bamboo)' : 'var(--accent-seal)'
-              }}>
-                {clozeFeedback[activeClozeCard.character] === 'correct' ? '✨ Correct! SRS interval updated.' : `❌ Incorrect! Character is ${activeClozeCard.character}`}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* AIM-006: Grammar Pattern Directory Modal */}
       <GrammarDirectoryModal
@@ -1654,6 +1593,15 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
         isOpen={showCulturalNotesModal}
         onClose={() => setShowCulturalNotesModal(false)}
         detectedNotes={detectedCulturalNotes}
+      />
+
+      {/* AIM-009: Offline Audio Pre-caching Modal */}
+      <AudioPrecacheModal
+        isOpen={showPrecacheModal}
+        onClose={() => setShowPrecacheModal(false)}
+        storyTitle={storyTitle}
+        sentences={sentences.map(s => s.text)}
+        selectedEngine={selectedEngine}
       />
     </div>
   );

@@ -51,7 +51,7 @@ export const SpeakingWorkspace: React.FC = () => {
         </div>
 
         {/* Sub-nav tabs */}
-        <div style={{ display: 'flex', gap: '6px', backgroundColor: 'var(--bg-base)', padding: '4px', borderRadius: 'var(--radius-sm)' }}>
+        <div className="speaking-subnav-tabs" style={{ display: 'flex', gap: '6px', backgroundColor: 'var(--bg-base)', padding: '4px', borderRadius: 'var(--radius-sm)' }}>
           <button
             onClick={() => setActiveSubTab('visualizer')}
             style={{

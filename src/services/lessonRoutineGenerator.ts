@@ -7,6 +7,8 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import type { Course, Chapter, CourseNode, OdysseyExercise } from '../types/Course';
 import { saveCourse } from './courseStore';
+import { DEFAULT_GEMINI_MODEL } from './gemini';
+import { STORAGE_KEYS } from './storage';
 
 export interface RoutineGenerationParams {
   node: CourseNode;
@@ -211,23 +213,32 @@ RULES:
 4. Output ONLY raw JSON. Do not wrap in markdown fences.`;
 
       let text = '';
-      try {
-        const model = genAI.getGenerativeModel({
-          model: 'gemini-3.1-flash-lite',
-          safetySettings,
-          generationConfig: { responseMimeType: 'application/json' }
-        });
-        const result = await model.generateContent(prompt);
-        text = result.response.text().trim();
-      } catch (e1) {
-        console.warn('gemini-3.1-flash-lite routine generation failed, trying gemini-2.5-flash fallback:', e1);
-        const model = genAI.getGenerativeModel({
-          model: 'gemini-2.5-flash',
-          safetySettings,
-          generationConfig: { responseMimeType: 'application/json' }
-        });
-        const result = await model.generateContent(prompt);
-        text = result.response.text().trim();
+      const preferredModel = localStorage.getItem(STORAGE_KEYS.GEMINI_MODEL) || DEFAULT_GEMINI_MODEL;
+      const modelsToTry = [
+        preferredModel,
+        'gemini-2.5-flash',
+        'gemini-2.5-flash-lite',
+        'gemini-3.8-flash',
+        'gemini-3.5-flash',
+        'gemini-3.1-flash-lite',
+        'gemini-2.5-pro',
+        'gemini-2.0-flash',
+        'gemini-1.5-flash'
+      ].filter((m, idx, arr) => Boolean(m) && arr.indexOf(m) === idx);
+
+      for (const modelId of modelsToTry) {
+        try {
+          const model = genAI.getGenerativeModel({
+            model: modelId,
+            safetySettings,
+            generationConfig: { responseMimeType: 'application/json' }
+          });
+          const result = await model.generateContent(prompt);
+          text = result.response.text().trim();
+          if (text) break;
+        } catch (err) {
+          console.warn(`Lesson routine generation failed with ${modelId}, trying fallback:`, err);
+        }
       }
 
       if (text.startsWith('```')) {
