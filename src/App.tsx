@@ -10,12 +10,13 @@ import { addCard, getDueCards, getAllCards, updateCard, type Flashcard } from '.
 import { tokenizeStory } from './utils/tokenizer';
 import { saveStory as dbSaveStory, deleteStory as dbDeleteStory, getSavedStories, type SavedStory } from './services/libraryStore';
 import { saveOverride, deleteOverride, getOverridesMap } from './services/dictionaryStore';
-import { generateLesson, generateGeminiText, DEFAULT_GEMINI_MODEL } from './services/gemini';
+import { generateLesson, generateGeminiText, getPreferredGeminiModel } from './services/gemini';
 import type { Lesson } from './types/Lesson';
 
-// 5 Sleek Modular Workspaces
+// 6 Sleek Modular Workspaces
 import { ReadingWorkspace } from './components/ReadingWorkspace';
 import { SpeakingWorkspace } from './components/SpeakingWorkspace';
+import { LanguageIslandsWorkspace } from './components/islands/LanguageIslandsWorkspace';
 import { ImportMediaWorkspace } from './components/ImportMediaWorkspace';
 import { ReviewWorkspace } from './components/ReviewWorkspace';
 import { LessonWorkspace } from './components/LessonWorkspace';
@@ -31,18 +32,21 @@ import { StrokeOrderModal } from './components/StrokeOrderModal';
 import { SettingsModal } from './components/SettingsModal';
 import { CharacterTooltip, type TooltipState } from './components/CharacterTooltip';
 import { DictionaryOverrideModal } from './components/DictionaryOverrideModal';
+import { ToastContainer } from './components/ToastContainer';
+import { ToastStore } from './services/toastStore';
 
 // Utilities & Services
 import { applyTheme, getStoredTheme } from './services/themeEngine';
 import { ReadingAnalytics, type ReadingSpeedRecord } from './services/readingAnalytics';
 import { AzureSpeechService, type TtsEngine, type NeuralVoice, type VoiceOption } from './services/azureSpeech';
 import { getStoredAccent, type RegionalAccent } from './utils/accentProfiles';
-import type { MoyunStoryPackage } from './utils/storyShare';
+import { StoryShareService, type MoyunStoryPackage } from './utils/storyShare';
 import { StorageService, STORAGE_KEYS } from './services/storage';
 import { searchDictionary } from './utils/dictionarySearch';
+import { CompoundDictionaryService } from './services/compoundDictionary';
 
 import { 
-  BookOpen, Mic, FolderArchive, Layers, GraduationCap, 
+  BookOpen, Mic, Compass, FolderArchive, Layers, GraduationCap, 
   Settings as SettingsIcon, Search, Trophy, Edit3
 } from 'lucide-react';
 
@@ -55,7 +59,7 @@ const HSK_GRAMMAR_CONSTRAINTS: Record<string, string> = {
   "6": "Use full vocabulary and grammar proficiency of HSK 6. You can use advanced syntax, idioms, abstract concepts, literary styles, and complex sentence chains."
 };
 
-export type WorkspaceType = 'reading' | 'speaking' | 'import' | 'review' | 'lessons';
+export type WorkspaceType = 'reading' | 'speaking' | 'islands' | 'import' | 'review' | 'lessons';
 
 function App() {
   // Navigation: 5 Modular Workspaces
@@ -179,7 +183,24 @@ function App() {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.onvoiceschanged = updateVoices;
     }
+    return () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+      }
+    };
   }, []);
+
+  // Memoized O(1) character lookup map for instant tooltips and lookups
+  const hanziMap = React.useMemo(() => {
+    const map = new Map<string, HanziItem>();
+    for (let i = 0; i < hanziData.length; i++) {
+      map.set(hanziData[i].character, hanziData[i]);
+    }
+    return map;
+  }, [hanziData]);
 
   // Load Hanzi, Vocab, and Overrides on mount
   useEffect(() => {
@@ -214,6 +235,15 @@ function App() {
 
         loadSRSStats('all');
         loadLibrary();
+
+        // Check if URL contains a peer-shared story package (#import=...)
+        const sharedPkg = StoryShareService.parseUrlHashPayload();
+        if (sharedPkg) {
+          handleImportStoryPackage(sharedPkg);
+          if (typeof window !== 'undefined') {
+            window.history.replaceState(null, '', window.location.pathname);
+          }
+        }
       } catch (err) {
         console.error('Failed to load CSV dictionary databases:', err);
       } finally {
@@ -345,16 +375,22 @@ function App() {
         const rawText = generatedStory.map(t => t.character).join('');
         setGeneratedStory(tokenizeStory(rawText, hanziData, vocabData, map));
       }
-      alert(`Custom definition saved for "${editingChar}"!`);
+      ToastStore.success(`Custom definition saved for "${editingChar}"!`);
     } catch (err) {
       console.error(err);
-      alert('Failed to save dictionary override.');
+      ToastStore.error('Failed to save dictionary override.');
     }
   };
 
   const handleDeleteOverride = async () => {
     if (!editingChar) return;
-    if (!confirm(`Reset "${editingChar}" to standard dictionary definitions?`)) return;
+    const confirmed = await ToastStore.confirm({
+      title: 'Reset Dictionary Override?',
+      message: `Reset "${editingChar}" to standard dictionary definitions?`,
+      confirmText: 'Reset Definitions',
+      type: 'warning'
+    });
+    if (!confirmed) return;
     try {
       await deleteOverride(editingChar);
       setIsEditingOverride(false);
@@ -364,10 +400,10 @@ function App() {
         const rawText = generatedStory.map(t => t.character).join('');
         setGeneratedStory(tokenizeStory(rawText, hanziData, vocabData, map));
       }
-      alert(`Reset "${editingChar}" to standard definitions!`);
+      ToastStore.success(`Reset "${editingChar}" to standard definitions!`);
     } catch (err) {
       console.error(err);
-      alert('Failed to reset override.');
+      ToastStore.error('Failed to reset override.');
     }
   };
 
@@ -375,13 +411,13 @@ function App() {
   const handleGenerateStory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!storyIdea.trim() || !hskLevel || !apiKey) {
-      alert('Please provide a story theme/prompt and configure your Gemini API Key in Settings.');
+      ToastStore.warning('Please provide a story theme/prompt and configure your Gemini API Key in Settings.');
       return;
     }
 
     setLoading(true);
     try {
-      const preferredModel = StorageService.getItem(STORAGE_KEYS.GEMINI_MODEL, DEFAULT_GEMINI_MODEL);
+      const preferredModel = getPreferredGeminiModel();
       const grammarConstraint = HSK_GRAMMAR_CONSTRAINTS[hskLevel] || "";
       const prompt = `Write a high-quality Chinese graded story strictly at HSK ${hskLevel} level based on: "${storyIdea}".
 Provide a concise Chinese title on the first line. Do NOT output Pinyin or English in the text.
@@ -404,7 +440,7 @@ Grammar constraint: ${grammarConstraint}`;
     } catch (err: any) {
       console.error('Error generating story:', err);
       const detail = err?.message || 'Check API key or quota.';
-      alert(`Failed to generate story: ${detail}`);
+      ToastStore.error(`Failed to generate story: ${detail}`);
     } finally {
       setLoading(false);
     }
@@ -415,7 +451,7 @@ Grammar constraint: ${grammarConstraint}`;
 
     setContinuing(true);
     try {
-      const preferredModel = StorageService.getItem(STORAGE_KEYS.GEMINI_MODEL, DEFAULT_GEMINI_MODEL);
+      const preferredModel = getPreferredGeminiModel();
       const currentText = generatedStory.map(t => t.character).join('');
       const prompt = `Here is the current Chinese story:
 "${currentText}"
@@ -431,7 +467,7 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
     } catch (err: any) {
       console.error('Error continuing story:', err);
       const detail = err?.message || 'Check API key or quota.';
-      alert(`Failed to generate continuation: ${detail}`);
+      ToastStore.error(`Failed to generate continuation: ${detail}`);
     } finally {
       setContinuing(false);
     }
@@ -451,7 +487,7 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
 
     setLoading(true);
     try {
-      const preferredModel = StorageService.getItem(STORAGE_KEYS.GEMINI_MODEL, DEFAULT_GEMINI_MODEL);
+      const preferredModel = getPreferredGeminiModel();
       const storyText = generatedStory.map(t => t.character).join('');
       const prompt = `Rewrite this story to strictly adhere to HSK ${targetLevel} vocabulary and grammar:
 "${storyText}"`;
@@ -464,7 +500,7 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
     } catch (err: any) {
       console.error('Error scaling difficulty:', err);
       const detail = err?.message || 'Check API key or quota.';
-      alert(`Failed to scale story difficulty: ${detail}`);
+      ToastStore.error(`Failed to scale story difficulty: ${detail}`);
     } finally {
       setLoading(false);
     }
@@ -475,7 +511,13 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
     if (!rawText) return;
     try {
       const defaultTitle = storyTitle || `Graded Story - HSK ${hskLevel}`;
-      const titleInput = prompt("Enter a title for this story in your library:", defaultTitle);
+      const titleInput = await ToastStore.prompt({
+        title: 'Save to Offline Library',
+        message: 'Enter a title for this story in your offline library:',
+        defaultValue: defaultTitle,
+        placeholder: 'Story Title...',
+        confirmText: 'Save Story'
+      });
       if (titleInput === null) return;
 
       const title = titleInput.trim() || defaultTitle;
@@ -485,11 +527,11 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
         text: rawText,
         hskLevel: hskLevel || '1'
       });
-      alert('Story saved to your local offline library!');
+      ToastStore.success('Story saved to your local offline library!');
       loadLibrary();
     } catch (err) {
       console.error(err);
-      alert('Failed to save story.');
+      ToastStore.error('Failed to save story.');
     }
   };
 
@@ -503,48 +545,32 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
         hsk_level: content.hskLevel,
         exampleSentence: sentenceContext
       });
-      alert(`Added "${char}" to your review deck!${sentenceContext ? ' (with context sentence)' : ''}`);
+      ToastStore.success(`Added "${char}" to your review deck!${sentenceContext ? ' (with context sentence)' : ''}`);
       loadSRSStats();
       setTooltip(prev => ({ ...prev, visible: false }));
     } catch (err) {
       console.error(err);
-      alert('Failed to add flashcard.');
+      ToastStore.error('Failed to add flashcard.');
     }
   };
 
-  // Grade SRS Flashcard
+  // Grade SRS Flashcard using centralized SM-2 algorithm & user-customized intervals
   const handleGradeCard = async (quality: number) => {
     if (!currentReviewCard) return;
 
-    let { interval, easeFactor } = currentReviewCard;
-    if (quality < 2) {
-      interval = 1;
-    } else {
-      if (interval === 0) interval = 1;
-      else if (interval === 1) interval = 6;
-      else interval = Math.round(interval * easeFactor);
-
-      easeFactor = easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
-      if (easeFactor < 1.3) easeFactor = 1.3;
+    try {
+      await updateCard(currentReviewCard.character, quality);
+      await loadSRSStats(activeDeckId);
+    } catch (err) {
+      console.error('Failed to grade flashcard:', err);
     }
-
-    const nextDate = Date.now() + interval * 24 * 60 * 60 * 1000;
-
-    await updateCard({
-      ...currentReviewCard,
-      interval,
-      easeFactor,
-      nextReviewDate: nextDate
-    });
-
-    loadSRSStats();
   };
 
   // Interactive Lesson Generation
   const handleGenerateLesson = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!lessonTopic.trim() || !lessonHskLevel || !apiKey) {
-      alert('Please enter a lesson topic and configure your Gemini API Key in Settings.');
+      ToastStore.warning('Please enter a lesson topic and configure your Gemini API Key in Settings.');
       return;
     }
 
@@ -554,7 +580,7 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
       setActiveLesson(lesson);
     } catch (err) {
       console.error('Error generating structured lesson:', err);
-      alert('Failed to generate structured lesson. Check your topic and API key.');
+      ToastStore.error('Failed to generate structured lesson. Check your topic and API key.');
     } finally {
       setLoadingLesson(false);
     }
@@ -666,7 +692,7 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
           <button
             onClick={() => setShowWritingGrader(true)}
             className="header-btn"
-            title="AI Writing & Grammar Grader (AIM-001)"
+            title="AI Writing & Grammar Grader"
           >
             <Edit3 size={14} color="var(--accent-seal)" />
             <span className="header-btn-text">Writing</span>
@@ -675,7 +701,7 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
           <button
             onClick={() => setShowLeaderboard(true)}
             className="header-btn"
-            title="Weekly Community Reading Leaderboard (GTU-003)"
+            title="Weekly Community Reading Leaderboard"
           >
             <Trophy size={14} color="var(--accent-gold)" />
             <span className="header-btn-text">Leaderboard</span>
@@ -707,6 +733,13 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
           className={`workspace-nav-item ${activeWorkspace === 'speaking' ? 'active' : ''}`}
         >
           <Mic size={15} /> Speaking
+        </button>
+
+        <button
+          onClick={() => setActiveWorkspace('islands')}
+          className={`workspace-nav-item ${activeWorkspace === 'islands' ? 'active' : ''}`}
+        >
+          <Compass size={15} /> Islands (岛屿)
         </button>
 
         <button
@@ -797,8 +830,15 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             onDeleteSavedStory={async (id) => {
-              if (confirm('Delete this story?')) {
+              const confirmed = await ToastStore.confirm({
+                title: 'Delete Story?',
+                message: 'Are you sure you want to delete this story from your offline library?',
+                confirmText: 'Delete Story',
+                type: 'danger'
+              });
+              if (confirmed) {
                 await dbDeleteStory(id);
+                ToastStore.success('Story deleted from offline library.');
                 loadLibrary();
               }
             }}
@@ -811,6 +851,112 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
         {/* WORKSPACE 2: SPEAKING PRACTICE */}
         {activeWorkspace === 'speaking' && (
           <SpeakingWorkspace />
+        )}
+
+        {/* WORKSPACE: LANGUAGE ISLANDS */}
+        {activeWorkspace === 'islands' && (
+          <LanguageIslandsWorkspace
+            hanziData={hanziData}
+            vocabData={vocabData}
+            overridesMap={overridesMap}
+            onCharClick={(wordOrChar, e, contextSentence) => {
+              const rect = (e.target as HTMLElement).getBoundingClientRect();
+
+              // Multi-character compound word lookup
+              if (wordOrChar.length > 1) {
+                const compound = CompoundDictionaryService.lookupSync(wordOrChar, hanziMap, undefined, overridesMap);
+                const pinyin = compound?.pinyin || Array.from(wordOrChar).map(c => overridesMap[c]?.pinyin || hanziMap.get(c)?.pinyin || '').join(' ');
+                const definition = compound?.definition || 'Compound word';
+                const constituentChars = compound?.constituentChars || CompoundDictionaryService.decomposeCompound(wordOrChar, hanziMap);
+
+                const item: HanziItem = {
+                  frequency_rank: '',
+                  character: wordOrChar,
+                  pinyin,
+                  definition,
+                  radical: '',
+                  radical_code: '',
+                  stroke_count: String(wordOrChar.length),
+                  hsk_level: compound?.hskLevel || '3',
+                  general_standard_num: '',
+                  isNonChinese: false,
+                  isCompound: true,
+                  constituentChars
+                };
+
+                setTooltip({
+                  visible: true,
+                  character: wordOrChar,
+                  item,
+                  contextSentence,
+                  content: {
+                    pinyin,
+                    definition,
+                    hskLevel: item.hsk_level
+                  },
+                  x: rect.left + window.scrollX + rect.width / 2,
+                  y: rect.top + window.scrollY - 10
+                });
+
+                // If compound was synthesized without definitive meaning, resolve via free Google helper in background
+                if (!compound || compound.source === 'synthesis') {
+                  CompoundDictionaryService.resolveCompound(wordOrChar, hanziMap, undefined, overridesMap).then(resolved => {
+                    setTooltip(prev => {
+                      if (prev.visible && prev.character === wordOrChar) {
+                        return {
+                          ...prev,
+                          item: {
+                            ...prev.item!,
+                            pinyin: resolved.pinyin || prev.item!.pinyin,
+                            definition: resolved.definition,
+                            constituentChars: resolved.constituentChars
+                          },
+                          content: {
+                            ...prev.content!,
+                            pinyin: resolved.pinyin || prev.content!.pinyin,
+                            definition: resolved.definition
+                          }
+                        };
+                      }
+                      return prev;
+                    });
+                  });
+                }
+                return;
+              }
+
+              // Single character lookup
+              const item = hanziMap.get(wordOrChar) || {
+                character: wordOrChar,
+                pinyin: overridesMap[wordOrChar]?.pinyin || '',
+                definition: overridesMap[wordOrChar]?.definition || 'Definition not found',
+                hsk_level: 'N/A'
+              } as any;
+              setTooltip({
+                visible: true,
+                character: wordOrChar,
+                item,
+                contextSentence,
+                content: {
+                  pinyin: overridesMap[wordOrChar]?.pinyin || item.pinyin,
+                  definition: overridesMap[wordOrChar]?.definition || item.definition,
+                  hskLevel: item.hsk_level,
+                  frequency: item.frequency_rank,
+                  radical: item.radical,
+                  strokes: item.stroke_count
+                },
+                x: rect.left + window.scrollX + rect.width / 2,
+                y: rect.top + window.scrollY - 10
+              });
+            }}
+            onStrokeOrder={(char) => {
+              const item = hanziMap.get(char);
+              const pinyin = overridesMap[char]?.pinyin || item?.pinyin || '';
+              const definition = overridesMap[char]?.definition || item?.definition || '';
+              setSelectedStrokeChar({ char, pinyin, definition });
+              setStrokeOrderModalOpen(true);
+            }}
+          />
         )}
 
         {/* WORKSPACE 3: IMPORT MEDIA */}
@@ -938,7 +1084,7 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
         onClose={() => setIsDiagnosticOpen(false)}
         onApplyLevel={(lvl) => {
           setHskLevel(String(lvl));
-          alert(`Placement level calibrated! Your target curriculum is now set to HSK ${lvl}.`);
+          ToastStore.success(`Placement level calibrated! Your target curriculum is now set to HSK ${lvl}.`);
         }}
       />
 
@@ -1030,6 +1176,9 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
         pinyin={selectedStrokeChar.pinyin}
         definition={selectedStrokeChar.definition}
       />
+
+      {/* Global Toast & Native Dialog Container */}
+      <ToastContainer />
     </div>
   );
 }

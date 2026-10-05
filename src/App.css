@@ -20,12 +20,12 @@
   --border-subtle: #293942;
   --border-strong: #37464F;
 
-  /* Cheerful, Playful Accents (Duolingo Palette) */
-  --accent-seal: #FF4B4B;     /* Cheerful Coral Red: Primary calls to action, review alerts */
-  --accent-bamboo: #58CC02;   /* Fresh Jade Green: Success, mastered Hanzi, passing reviews */
-  --accent-gold: #FFC800;     /* Sunny Honey Gold: Badges, streaks, grammar gems */
-  --accent-sky: #1CB0F6;      /* Feather Sky Blue: Audio playback, active links */
-  --accent-purple: #CE82FF;   /* Amethyst: Cultural insights, idioms */
+  /* Eye-Friendly Refined Accents */
+  --accent-seal: #E05353;     /* Refined Coral Red: Primary calls to action, review alerts */
+  --accent-bamboo: #38A169;   /* Soothing Jade Bamboo: Success, active toggles, mastered Hanzi */
+  --accent-gold: #E5A100;     /* Warm Amber Gold: Badges, streaks, grammar gems */
+  --accent-sky: #2F8CE6;      /* Gentle Azure: Audio playback, active links */
+  --accent-purple: #9F7AEA;   /* Soft Amethyst: Cultural insights, idioms */
 
   /* Backward Compatibility Aliases */
   --bg-primary: var(--bg-base);
@@ -77,14 +77,14 @@
   --text-muted: #778893;
   --border-subtle: #E5E9EB;
   --border-strong: #D3D9DE;
-  --accent-seal: #FF4B4B;
-  --accent-bamboo: #58CC02;
-  --accent-gold: #E5A100;
+  --accent-seal: #D94848;
+  --accent-bamboo: #2F855A;
+  --accent-gold: #D69E2E;
   --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.05);
   --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.12);
   --shadow-tactile: 0 3px 0 #D3D9DE;
-  --shadow-tactile-primary: 0 3px 0 #D93838;
-  --shadow-tactile-green: 0 3px 0 #46A302;
+  --shadow-tactile-primary: 0 3px 0 #C53030;
+  --shadow-tactile-green: 0 3px 0 #276749;
 }
 
 
@@ -635,22 +635,30 @@ body {
   background-color: var(--bg-surface-hover);
 }
 
-/* Success / Accent Buttons */
+/* Success / Active State Buttons */
 .btn-bamboo {
-  background-color: var(--accent-bamboo);
-  color: #FFFFFF;
+  background-color: rgba(56, 161, 105, 0.16);
+  color: var(--accent-bamboo);
   border: 1px solid var(--accent-bamboo);
-  border-bottom: 3px solid #46A302;
-  box-shadow: 0 2px 6px rgba(88, 204, 2, 0.25);
+  border-bottom: 2px solid var(--accent-bamboo);
+  box-shadow: 0 1px 4px rgba(56, 161, 105, 0.12);
+  font-weight: 600;
+}
+
+[data-theme="light"] .btn-bamboo {
+  background-color: rgba(47, 133, 90, 0.12);
+  color: var(--accent-bamboo);
+  border: 1px solid var(--accent-bamboo);
+  border-bottom: 2px solid var(--accent-bamboo);
 }
 
 .btn-bamboo:hover {
-  filter: brightness(1.08);
+  background-color: rgba(56, 161, 105, 0.24);
   transform: translateY(-1px);
 }
 
 .btn-bamboo:active {
-  transform: translateY(2px);
+  transform: translateY(1px);
   border-bottom-width: 1px;
 }
 
@@ -1780,4 +1788,22 @@ body {
     padding: 10px 6px !important;
     font-size: 13px !important;
   }
+}
+
+/* Language Islands Interactive Hanzi Tokens & Compounds */
+.island-hanzi-token:hover {
+  color: var(--accent-bamboo) !important;
+  border-bottom-color: var(--accent-bamboo) !important;
+  background-color: rgba(88, 204, 2, 0.12);
+  border-radius: 3px;
+}
+
+.island-compound-token {
+  position: relative;
+  letter-spacing: 0.02em;
+}
+
+.island-compound-token:hover {
+  background-color: rgba(88, 204, 2, 0.18) !important;
+  box-shadow: 0 1px 4px rgba(88, 204, 2, 0.2);
 }

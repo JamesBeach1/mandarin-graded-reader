@@ -4,6 +4,7 @@
  */
 
 import { getAllCards, type Flashcard } from './srsStore';
+import { ToastStore } from './toastStore';
 
 export class AnkiExportService {
   /**
@@ -45,7 +46,7 @@ export class AnkiExportService {
   public static async downloadAnkiDeck(filename = 'mandarin_graded_reader_deck.txt'): Promise<void> {
     const tsvContent = await this.exportToAnkiTSV();
     if (!tsvContent) {
-      alert('No flashcards found to export.');
+      ToastStore.info('No flashcards found to export.');
       return;
     }
 
@@ -58,6 +59,7 @@ export class AnkiExportService {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    ToastStore.success('Anki deck exported successfully.');
   }
 
   /**
@@ -92,7 +94,7 @@ export class AnkiExportService {
   public static async downloadPlecoDeck(filename = 'moyun_pleco_flashcards.txt'): Promise<void> {
     const content = await this.exportToPlecoTSV();
     if (!content) {
-      alert('No flashcards found to export.');
+      ToastStore.info('No flashcards found to export.');
       return;
     }
 
@@ -105,5 +107,6 @@ export class AnkiExportService {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    ToastStore.success('Pleco deck exported successfully.');
   }
 }

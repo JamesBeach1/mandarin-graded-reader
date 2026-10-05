@@ -9,6 +9,7 @@
 
 import { hashString, getCachedAudio, setCachedAudio } from './audioCache';
 import { getStoredAccent, REGIONAL_ACCENT_PROFILES, applyAccentTransform, type RegionalAccent } from '../utils/accentProfiles';
+import { StorageService, STORAGE_KEYS } from './storage';
 
 export type NeuralVoice = 'zh-CN-XiaoxiaoNeural' | 'zh-CN-YunxiNeural' | 'zh-CN-YunjianNeural' | 'zh-CN-XiaoyiNeural';
 export type NeuralStyle = 'narration-professional' | 'chat' | 'cheerful' | 'empathetic' | 'angry' | 'sad' | 'calm';
@@ -131,8 +132,8 @@ export class AzureSpeechService {
     text: string,
     options: SpeechPlaybackOptions = {}
   ): Promise<{ audioUrl?: string; usedFallback: boolean }> {
-    const azureKey = options.azureKey || localStorage.getItem('azure_speech_key') || '';
-    const azureRegion = options.azureRegion || localStorage.getItem('azure_speech_region') || this.defaultRegion;
+    const azureKey = options.azureKey || StorageService.getItem(STORAGE_KEYS.AZURE_SPEECH_KEY);
+    const azureRegion = options.azureRegion || StorageService.getItem(STORAGE_KEYS.AZURE_SPEECH_REGION, this.defaultRegion);
 
     if (!azureKey || !azureKey.trim()) {
       return { usedFallback: true };
@@ -186,24 +187,50 @@ export class AzureSpeechService {
    */
   public static speak(
     text: string,
-    options: SpeechPlaybackOptions = {},
-    onEnd?: () => void,
-    onError?: (err: any) => void
+    optionsOrRate: SpeechPlaybackOptions | number = {},
+    onEndOrEngine?: (() => void) | TtsEngine,
+    onErrorOrVoice?: ((err: any) => void) | string
   ): AudioPlaybackHandle {
+    const isRateNumber = typeof optionsOrRate === 'number';
+    const rawOptions: SpeechPlaybackOptions = isRateNumber
+      ? {
+          rate: optionsOrRate,
+          engine: typeof onEndOrEngine === 'string' ? onEndOrEngine : undefined,
+          systemVoiceName: typeof onErrorOrVoice === 'string' ? onErrorOrVoice : undefined
+        }
+      : (optionsOrRate || {});
+
+    const onEnd = isRateNumber ? undefined : (typeof onEndOrEngine === 'function' ? onEndOrEngine : undefined);
+    const onError = isRateNumber ? undefined : (typeof onErrorOrVoice === 'function' ? onErrorOrVoice : undefined);
+
     let stopped = false;
     let currentAudio: HTMLAudioElement | null = null;
     let currentUtterance: SpeechSynthesisUtterance | null = null;
+    let createdObjectUrl: string | null = null;
     let hasCompleted = false;
+
+    const revokeCreatedUrl = () => {
+      if (createdObjectUrl) {
+        try {
+          URL.revokeObjectURL(createdObjectUrl);
+        } catch {
+          // ignore
+        }
+        createdObjectUrl = null;
+      }
+    };
 
     const safeOnEnd = () => {
       if (stopped || hasCompleted) return;
       hasCompleted = true;
+      revokeCreatedUrl();
       if (onEnd) onEnd();
     };
 
     const safeOnError = (err: any) => {
       if (stopped || hasCompleted) return;
       hasCompleted = true;
+      revokeCreatedUrl();
       if (onError) onError(err);
     };
 
@@ -213,6 +240,7 @@ export class AzureSpeechService {
         if (stopped) return;
         stopped = true;
         hasCompleted = true;
+        revokeCreatedUrl();
 
         // Abort audio element
         if (currentAudio) {
@@ -254,6 +282,7 @@ export class AzureSpeechService {
     const triggerFallback = () => {
       if (hasFallenBack || stopped) return;
       hasFallenBack = true;
+      revokeCreatedUrl();
       if (currentAudio) {
         currentAudio.pause();
         currentAudio.onended = null;
@@ -261,21 +290,48 @@ export class AzureSpeechService {
         currentAudio.src = '';
         currentAudio = null;
       }
-      currentUtterance = this.speakOfflineFallbackInternal(text, options.rate || 1.0, options.systemVoiceName, safeOnEnd, safeOnError);
+      currentUtterance = this.speakOfflineFallbackInternal(
+        text, 
+        effectiveRate, 
+        effectiveSystemVoice, 
+        safeOnEnd, 
+        safeOnError
+      );
     };
 
-    const effectiveEngine = options.engine || 
-      (localStorage.getItem('selected_tts_engine') as TtsEngine) || 
-      (localStorage.getItem('azure_speech_key') ? 'azure-neural' : 'system');
+    // Auto-resolve preferences from StorageService if not explicitly provided
+    const effectiveEngine: TtsEngine = rawOptions.engine || 
+      (StorageService.getItem(STORAGE_KEYS.SELECTED_TTS_ENGINE) as TtsEngine) || 
+      (StorageService.getItem(STORAGE_KEYS.AZURE_SPEECH_KEY) ? 'azure-neural' : 'cloud-natural');
+
+    const effectiveAzureKey = rawOptions.azureKey || StorageService.getItem(STORAGE_KEYS.AZURE_SPEECH_KEY);
+    const effectiveAzureRegion = rawOptions.azureRegion || StorageService.getItem(STORAGE_KEYS.AZURE_SPEECH_REGION, this.defaultRegion);
+    const effectiveVoice = rawOptions.voice || StorageService.getItem(STORAGE_KEYS.SELECTED_AZURE_VOICE, 'zh-CN-XiaoxiaoNeural');
+    const effectiveSystemVoice = rawOptions.systemVoiceName || StorageService.getItem(STORAGE_KEYS.SELECTED_SYSTEM_VOICE);
+    const effectiveRate = rawOptions.rate ?? 1.0;
+
+    const mergedOptions: SpeechPlaybackOptions = {
+      ...rawOptions,
+      engine: effectiveEngine,
+      azureKey: effectiveAzureKey,
+      azureRegion: effectiveAzureRegion,
+      voice: effectiveVoice,
+      systemVoiceName: effectiveSystemVoice,
+      rate: effectiveRate
+    };
 
     // 1. Try Azure Neural if configured
-    if (effectiveEngine === 'azure-neural' && (options.azureKey || localStorage.getItem('azure_speech_key'))) {
-      this.synthesizeSpeech(text, options).then(({ audioUrl, usedFallback }) => {
-        if (stopped) return;
+    if (effectiveEngine === 'azure-neural' && effectiveAzureKey) {
+      this.synthesizeSpeech(text, mergedOptions).then(({ audioUrl, usedFallback }) => {
+        if (stopped) {
+          if (audioUrl) URL.revokeObjectURL(audioUrl);
+          return;
+        }
         if (audioUrl && !usedFallback) {
+          createdObjectUrl = audioUrl;
           const audio = new Audio(audioUrl);
           currentAudio = audio;
-          audio.playbackRate = options.rate || 1.0;
+          audio.playbackRate = effectiveRate;
           audio.onended = () => {
             if (stopped) return;
             safeOnEnd();
@@ -303,7 +359,7 @@ export class AzureSpeechService {
         const naturalUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q=${encodedText}`;
         const audio = new Audio(naturalUrl);
         currentAudio = audio;
-        audio.playbackRate = options.rate || 1.0;
+        audio.playbackRate = effectiveRate;
 
         audio.onended = () => {
           if (stopped) return;
@@ -326,7 +382,7 @@ export class AzureSpeechService {
     }
 
     // 3. Native browser Web Speech API (Default: High compatibility, zero network latency)
-    currentUtterance = this.speakOfflineFallbackInternal(text, options.rate || 1.0, options.systemVoiceName, safeOnEnd, safeOnError);
+    currentUtterance = this.speakOfflineFallbackInternal(text, effectiveRate, effectiveSystemVoice, safeOnEnd, safeOnError);
     return handle;
   }
 

@@ -38,7 +38,7 @@ export const ConfusableHanziModal: React.FC<ConfusableHanziModalProps> = ({
     setAnsweredCount(prev => prev + 1);
     if (char === currentQuestion.correctCharacter) {
       setScore(prev => prev + 1);
-      AzureSpeechService.speak(char, 0.9);
+      AzureSpeechService.speak(char, { rate: 0.9 });
     }
   };
 
@@ -318,6 +318,8 @@ export const ConfusableHanziModal: React.FC<ConfusableHanziModalProps> = ({
                       {cluster.characters.map(item => (
                         <div
                           key={item.character}
+                          onClick={() => AzureSpeechService.speak(item.character, { rate: 0.85 })}
+                          title={`Click to listen to ${item.character} (${item.pinyin})`}
                           style={{
                             padding: '12px',
                             backgroundColor: 'var(--bg-surface)',
@@ -326,7 +328,9 @@ export const ConfusableHanziModal: React.FC<ConfusableHanziModalProps> = ({
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
-                            textAlign: 'center'
+                            textAlign: 'center',
+                            cursor: 'pointer',
+                            transition: 'border-color 0.15s ease'
                           }}
                         >
                           <div style={{ fontSize: '40px', fontFamily: 'var(--font-serif-zh)', color: 'var(--text-primary)', lineHeight: 1 }}>

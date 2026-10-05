@@ -115,7 +115,7 @@ export const SpeakingWorkspace: React.FC = () => {
               transition: 'all 0.15s ease'
             }}
           >
-            <Headphones size={13} /> Minimal Pairs (ALS-002)
+            <Headphones size={13} /> Minimal Pairs
           </button>
 
           <button
@@ -159,7 +159,7 @@ export const SpeakingWorkspace: React.FC = () => {
               transition: 'all 0.15s ease'
             }}
           >
-            <Puzzle size={13} /> Auditory Jigsaw (ALS-008)
+            <Puzzle size={13} /> Auditory Jigsaw
           </button>
 
           <button
@@ -181,7 +181,7 @@ export const SpeakingWorkspace: React.FC = () => {
               transition: 'all 0.15s ease'
             }}
           >
-            <MessageSquare size={13} /> Roleplay Chat (ALS-009)
+            <MessageSquare size={13} /> Roleplay Chat
           </button>
 
           <button
@@ -203,7 +203,7 @@ export const SpeakingWorkspace: React.FC = () => {
               transition: 'all 0.15s ease'
             }}
           >
-            <BarChart2 size={13} /> Weakness Heatmap (ALS-010)
+            <BarChart2 size={13} /> Weakness Heatmap
           </button>
         </div>
       </div>

@@ -1,5 +1,24 @@
 import type { HanziItem } from '../types/HanziItem';
 import { getChengyu } from './chengyuDatabase';
+import { CompoundDictionaryService } from '../services/compoundDictionary';
+
+const hanziMapCache = new WeakMap<HanziItem[], Map<string, HanziItem>>();
+const vocabMapCache = new WeakMap<HanziItem[], Map<string, HanziItem>>();
+
+function getMapForArray(arr: HanziItem[], cache: WeakMap<HanziItem[], Map<string, HanziItem>>): Map<string, HanziItem> {
+  let map = cache.get(arr);
+  if (!map) {
+    map = new Map();
+    for (let i = 0; i < arr.length; i++) {
+      const item = arr[i];
+      if (item && item.character && !map.has(item.character)) {
+        map.set(item.character, item);
+      }
+    }
+    cache.set(arr, map);
+  }
+  return map;
+}
 
 export function tokenizeStory(
   text: string,
@@ -8,6 +27,8 @@ export function tokenizeStory(
   customOverrides?: Record<string, { pinyin: string; definition: string }>
 ): HanziItem[] {
   const isChinese = (char: string) => /[\u4E00-\u9FFF]/.test(char);
+  const hanziMap = getMapForArray(hanziData, hanziMapCache);
+  const vocabMap = getMapForArray(vocabData, vocabMapCache);
 
   // Check if Intl.Segmenter is supported
   if (typeof Intl === 'undefined' || !Intl.Segmenter) {
@@ -28,7 +49,7 @@ export function tokenizeStory(
             isNonChinese: false,
           });
         } else {
-          const entry = hanziData.find((item) => item.character === char);
+          const entry = hanziMap.get(char);
           result.push(
             entry
               ? { ...entry, isNonChinese: false }
@@ -148,21 +169,41 @@ export function tokenizeStory(
         }
 
         // 1. Check if word itself exists in vocabData
-        let foundWord = vocabData.find((item) => item.character === word);
+        let foundWord = vocabMap.get(word);
 
         // If not in vocabData, check if it's in single-character DB
         if (!foundWord && word.length === 1) {
-          foundWord = hanziData.find((item) => item.character === word);
+          foundWord = hanziMap.get(word);
         }
 
         if (foundWord) {
           result.push({
             ...foundWord,
             isNonChinese: false,
+            isCompound: word.length > 1,
+            constituentChars: word.length > 1 ? CompoundDictionaryService.decomposeCompound(word, hanziMap) : undefined
           });
         } else {
-          // 2. Fall back to character-by-character tokenization
-          word.split('').forEach((char) => {
+          // 1.5 Check multi-character compound lexicon and cache
+          const compound = word.length > 1 ? CompoundDictionaryService.lookupSync(word, hanziMap, vocabMap, customOverrides) : null;
+          if (compound) {
+            result.push({
+              frequency_rank: '',
+              character: compound.word,
+              pinyin: compound.pinyin,
+              definition: compound.definition,
+              radical: '',
+              radical_code: '',
+              stroke_count: String(compound.word.length),
+              hsk_level: compound.hskLevel || 'Custom',
+              general_standard_num: '',
+              isNonChinese: false,
+              isCompound: true,
+              constituentChars: compound.constituentChars
+            });
+          } else {
+            // 2. Fall back to character-by-character tokenization
+            word.split('').forEach((char) => {
             if (isChinese(char)) {
               if (customOverrides && customOverrides[char]) {
                 result.push({
@@ -178,7 +219,7 @@ export function tokenizeStory(
                   isNonChinese: false,
                 });
               } else {
-                const charEntry = hanziData.find((item) => item.character === char);
+                const charEntry = hanziMap.get(char);
                 if (charEntry) {
                   result.push({
                     ...charEntry,
@@ -214,6 +255,7 @@ export function tokenizeStory(
               });
             }
           });
+          }
         }
       }
     } else {

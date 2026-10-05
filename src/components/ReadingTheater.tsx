@@ -3,7 +3,8 @@ import type { HanziItem } from '../types/HanziItem';
 import { 
   Volume2, Pause, Play, Square, BookOpen, Eye, EyeOff, Save, Printer, 
   TrendingDown, TrendingUp, Maximize2, Minimize2, Languages, Sparkles,
-  ChevronDown, MoreHorizontal, Palette, Zap, Subtitles, BarChart3, HelpCircle, RotateCcw, Share2, Settings
+  ChevronDown, MoreHorizontal, Palette, Zap, Subtitles, BarChart3, HelpCircle, RotateCcw, Share2, Settings,
+  Compass, Check
 } from 'lucide-react';
 import { AzureSpeechService, type TtsEngine, type VoiceOption, type AudioPlaybackHandle } from '../services/azureSpeech';
 import { findGrammarPatterns, type GrammarPatternMatch } from '../utils/grammarHighlighter';
@@ -27,6 +28,8 @@ import { CulturalNotesModal } from './CulturalNotesModal';
 import { AudioPrecacheModal } from './AudioPrecacheModal';
 import { StoryClozeModal } from './StoryClozeModal';
 import { StorageService, STORAGE_KEYS } from '../services/storage';
+import { IslandStore } from '../services/islandStore';
+import type { IslandSentence } from '../types/Island';
 
 interface ReadingTheaterProps {
   storyTitle: string;
@@ -172,7 +175,7 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
     if (!activeClozeCard) return;
     const isRight = selectedChar === activeClozeCard.character;
     if (isRight) {
-      AzureSpeechService.speak(activeClozeCard.character, 0.9);
+      AzureSpeechService.speak(activeClozeCard.character, { rate: 0.9 });
       updateCard(activeClozeCard.character, 3);
       setClozeFeedback(prev => ({ ...prev, [activeClozeCard.character]: 'correct' }));
     } else {
@@ -231,7 +234,7 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
     if (!hoverAudioEnabled || !char || !char.trim()) return;
     if (hoverAudioTimerRef.current) clearTimeout(hoverAudioTimerRef.current);
     hoverAudioTimerRef.current = setTimeout(() => {
-      AzureSpeechService.speak(char, 1.0, selectedEngine, selectedSystemVoice);
+      AzureSpeechService.speak(char, { rate: 1.0, engine: selectedEngine, systemVoiceName: selectedSystemVoice });
     }, 300);
   };
 
@@ -389,93 +392,94 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
     return combined.sort(() => 0.5 - Math.random());
   }, [activeClozeCard, activeTokens]);
 
-  // Detect grammar patterns across full text
-  const fullText = activeTokens.map(t => t.character).join('');
-  const grammarMatches = highlightGrammar ? findGrammarPatterns(fullText) : [];
-
-  // Map each token's character range in fullText to any overlapping grammar matches
-  let charCursor = 0;
-  const tokenGrammarMap = new Map<number, GrammarPatternMatch>();
-  activeTokens.forEach((t, idx) => {
-    const start = charCursor;
-    const end = charCursor + t.character.length;
-    charCursor = end;
-
-    if (highlightGrammar && grammarMatches.length > 0) {
-      const match = grammarMatches.find(m => Math.max(m.startIndex, start) < Math.min(m.endIndex, end));
-      if (match) {
-        tokenGrammarMap.set(idx, match);
-      }
-    }
-  });
-
-  // Group tokens into sentences based on punctuation (。, ！, ？, \n)
+  // Group tokens into sentences and natural paragraphs (split by newline)
   interface EnrichedSentenceToken {
     item: HanziItem;
     globalIdx: number;
     grammarMatch?: GrammarPatternMatch;
   }
 
-  const sentences: { id: number; tokens: EnrichedSentenceToken[]; text: string }[] = [];
-  let currentSentenceTokens: EnrichedSentenceToken[] = [];
-  let currentSentenceText = '';
-
-  activeTokens.forEach((token, globalIdx) => {
-    currentSentenceTokens.push({
-      item: token,
-      globalIdx,
-      grammarMatch: tokenGrammarMap.get(globalIdx)
-    });
-    currentSentenceText += token.character;
-
-    if (token.character.match(/[。！？.!?\n]/)) {
-      sentences.push({
-        id: sentences.length,
-        tokens: [...currentSentenceTokens],
-        text: currentSentenceText.trim()
-      });
-      currentSentenceTokens = [];
-      currentSentenceText = '';
-    }
-  });
-
-  if (currentSentenceTokens.length > 0) {
-    const hasChineseOrWord = currentSentenceTokens.some(t => !t.item.isNonChinese && t.item.character.trim().length > 0);
-    if (!hasChineseOrWord && sentences.length > 0) {
-      const lastSentence = sentences[sentences.length - 1];
-      lastSentence.tokens.push(...currentSentenceTokens);
-      lastSentence.text = (lastSentence.text + currentSentenceText).trim();
-    } else {
-      sentences.push({
-        id: sentences.length,
-        tokens: [...currentSentenceTokens],
-        text: currentSentenceText.trim()
-      });
-    }
-  }
-
-  // Group sentences into natural paragraphs (split by newline)
   interface EnrichedParagraph {
     id: number;
-    sentences: typeof sentences;
+    sentences: { id: number; tokens: EnrichedSentenceToken[]; text: string }[];
     text: string;
   }
 
-  const paragraphs: EnrichedParagraph[] = [];
-  let curParaSentences: typeof sentences = [];
+  const { sentences, paragraphs } = useMemo(() => {
+    const fullText = activeTokens.map(t => t.character).join('');
+    const grammarMatches = highlightGrammar ? findGrammarPatterns(fullText) : [];
 
-  sentences.forEach((sent, sIdx) => {
-    curParaSentences.push(sent);
-    const endsWithBreak = sent.tokens.some(t => t.item.character.includes('\n'));
-    if (endsWithBreak || sIdx === sentences.length - 1) {
-      paragraphs.push({
-        id: paragraphs.length,
-        sentences: [...curParaSentences],
-        text: curParaSentences.map(s => s.text).join(' ')
+    let charCursor = 0;
+    const tokenGrammarMap = new Map<number, GrammarPatternMatch>();
+    activeTokens.forEach((t, idx) => {
+      const start = charCursor;
+      const end = charCursor + t.character.length;
+      charCursor = end;
+
+      if (highlightGrammar && grammarMatches.length > 0) {
+        const match = grammarMatches.find(m => Math.max(m.startIndex, start) < Math.min(m.endIndex, end));
+        if (match) {
+          tokenGrammarMap.set(idx, match);
+        }
+      }
+    });
+
+    const sents: { id: number; tokens: EnrichedSentenceToken[]; text: string }[] = [];
+    let currentSentenceTokens: EnrichedSentenceToken[] = [];
+    let currentSentenceText = '';
+
+    activeTokens.forEach((token, globalIdx) => {
+      currentSentenceTokens.push({
+        item: token,
+        globalIdx,
+        grammarMatch: tokenGrammarMap.get(globalIdx)
       });
-      curParaSentences = [];
+      currentSentenceText += token.character;
+
+      if (token.character.match(/[。！？.!?\n]/)) {
+        sents.push({
+          id: sents.length,
+          tokens: [...currentSentenceTokens],
+          text: currentSentenceText.trim()
+        });
+        currentSentenceTokens = [];
+        currentSentenceText = '';
+      }
+    });
+
+    if (currentSentenceTokens.length > 0) {
+      const hasChineseOrWord = currentSentenceTokens.some(t => !t.item.isNonChinese && t.item.character.trim().length > 0);
+      if (!hasChineseOrWord && sents.length > 0) {
+        const lastSentence = sents[sents.length - 1];
+        lastSentence.tokens.push(...currentSentenceTokens);
+        lastSentence.text = (lastSentence.text + currentSentenceText).trim();
+      } else {
+        sents.push({
+          id: sents.length,
+          tokens: [...currentSentenceTokens],
+          text: currentSentenceText.trim()
+        });
+      }
     }
-  });
+
+    const paras: EnrichedParagraph[] = [];
+    let curParaSentences: typeof sents = [];
+
+    sents.forEach((sent, sIdx) => {
+      curParaSentences.push(sent);
+      const endsWithBreak = sent.tokens.some(t => t.item.character.includes('\n'));
+      if (endsWithBreak || sIdx === sents.length - 1) {
+        paras.push({
+          id: paras.length,
+          sentences: [...curParaSentences],
+          text: curParaSentences.map(s => s.text).join(' ')
+        });
+        curParaSentences = [];
+      }
+    });
+
+    return { sentences: sents, paragraphs: paras };
+  }, [activeTokens, highlightGrammar]);
 
   // GTU-008: Unique vocabulary items for printable glossary
   const glossaryItems = React.useMemo(() => {
@@ -503,12 +507,38 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
     });
   }, [sentences, scriptPreference]);
 
+  const [savedToIslandSentences, setSavedToIslandSentences] = useState<Record<number, boolean>>({});
+
   const handleToggleTranslation = (sentenceId: number, sentenceText: string) => {
     setRevealedTranslations(prev => ({
       ...prev,
       [sentenceId]: !prev[sentenceId]
     }));
     onSentenceClick(sentenceText);
+  };
+
+  const handleSaveSentenceToIsland = async (sentenceText: string, sentenceId: number, sentencePinyin: string) => {
+    try {
+      const islands = await IslandStore.getAllIslands();
+      const targetIsland = islands[0] || { id: 'island-morning-life', title: 'Daily Life' };
+      const newSentence: IslandSentence = {
+        id: `sent-reader-${Date.now()}-${sentenceId}`,
+        islandId: targetIsland.id,
+        chinese: sentenceText,
+        pinyin: sentencePinyin,
+        english: `Sentence from story "${storyTitle}"`,
+        notes: `Imported from Graded Reader (HSK ${hskLevel})`,
+        hskLevel: parseInt(hskLevel, 10) || 1,
+        masteryLevel: 0,
+        timesReviewed: 0,
+        struggleCount: 0,
+        createdAt: Date.now()
+      };
+      await IslandStore.saveSentence(newSentence);
+      setSavedToIslandSentences(prev => ({ ...prev, [sentenceId]: true }));
+    } catch (err) {
+      console.error('Failed to save sentence to Language Island:', err);
+    }
   };
 
   const stopAudio = () => {
@@ -941,7 +971,7 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
                 }}
                 className={`btn ${toneColorMode !== 'off' ? 'btn-bamboo' : 'btn-secondary'}`}
                 style={{ padding: '5px 11px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: 'var(--radius-pill)' }}
-                title="Tone Color Coding (TRC-003): Off | Pinyin Only | Hanzi & Pinyin"
+                title="Tone Color Coding: Off | Pinyin Only | Hanzi & Pinyin"
               >
                 <Palette size={13} />
                 <span>Tones: {toneColorMode === 'off' ? 'Off' : toneColorMode === 'pinyin' ? 'Pinyin' : 'Both'}</span>
@@ -1323,14 +1353,50 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
                       })}
                     </span>
 
-                    {/* Inline sentence translation reveal */}
+                    {/* Inline sentence translation reveal & quick practice actions */}
                     {isRevealed && (
                       <div className="sentence-translation-box print-hide">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 500, fontSize: '12px', color: 'var(--accent-gold)' }}>
-                          <Languages size={14} /> Sentence Translation & Analysis:
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, fontSize: '12px', color: 'var(--accent-gold)' }}>
+                            <Languages size={14} /> Sentence Analysis & Practice:
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                AzureSpeechService.speak(sentence.text);
+                              }}
+                              className="btn btn-secondary"
+                              style={{ padding: '4px 10px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                              title="Listen to this sentence"
+                            >
+                              <Volume2 size={12} /> Play
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSaveSentenceToIsland(sentence.text, sentence.id, sentence.pinyin);
+                              }}
+                              className={`btn ${savedToIslandSentences[sentence.id] ? 'btn-bamboo' : 'btn-secondary'}`}
+                              style={{ padding: '4px 10px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                              title="Export this sentence to your Language Islands for shadowing and audio flooding"
+                            >
+                              {savedToIslandSentences[sentence.id] ? (
+                                <>
+                                  <Check size={12} /> Added to Island
+                                </>
+                              ) : (
+                                <>
+                                  <Compass size={12} /> Add to Island
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </div>
-                        <div style={{ marginTop: '6px', fontStyle: 'italic', color: 'var(--text-primary)' }}>
-                          "{sentence.text}" — Click right-pane grammar explainer for complete structural breakdown.
+                        <div style={{ fontStyle: 'italic', color: 'var(--text-primary)', fontSize: '13.5px' }}>
+                          "{sentence.text}"
                         </div>
                       </div>
                     )}

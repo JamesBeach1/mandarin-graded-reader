@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Volume2, Mic, Play, Square, Plus, Trash2, BookOpen, Sparkles, Filter } from 'lucide-react';
 import { AzureSpeechService } from '../services/azureSpeech';
+import { ToastStore } from '../services/toastStore';
 
 export interface ShadowingPrompt {
   id: string;
@@ -183,6 +184,17 @@ export const ShadowingStudio: React.FC = () => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
+  useEffect(() => {
+    return () => {
+      if (userAudioUrl) {
+        try { URL.revokeObjectURL(userAudioUrl); } catch {}
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try { mediaRecorderRef.current.stop(); } catch {}
+      }
+    };
+  }, [userAudioUrl]);
+
   const filteredPrompts = allPrompts.filter(p => {
     if (levelFilter === 'all') return true;
     if (levelFilter === 'custom') return p.isCustom;
@@ -215,8 +227,12 @@ export const ShadowingStudio: React.FC = () => {
 
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const url = URL.createObjectURL(audioBlob);
-        setUserAudioUrl(url);
+        setUserAudioUrl(prevUrl => {
+          if (prevUrl) {
+            try { URL.revokeObjectURL(prevUrl); } catch {}
+          }
+          return URL.createObjectURL(audioBlob);
+        });
         stream.getTracks().forEach(t => t.stop());
       };
 
@@ -224,7 +240,7 @@ export const ShadowingStudio: React.FC = () => {
       setIsRecording(true);
     } catch (err) {
       console.error('Microphone error:', err);
-      alert('Microphone access is required for shadowing recording.');
+      ToastStore.warning('Microphone access is required for shadowing recording. Please check browser mic permissions.');
     }
   };
 

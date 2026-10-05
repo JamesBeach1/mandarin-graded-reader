@@ -3,6 +3,7 @@ import { PronunciationTracker, type PhonemeRecord, type PhonemeCategory } from '
 import { AzureSpeechService } from '../services/azureSpeech';
 import { SpeechRecognitionService } from '../services/speechRecognition';
 import { Activity, Volume2, Mic, CheckCircle2, AlertTriangle, RotateCcw, Sparkles } from 'lucide-react';
+import { ToastStore } from '../services/toastStore';
 
 export const PronunciationHeatmap: React.FC = () => {
   const [records, setRecords] = useState<PhonemeRecord[]>(() => PronunciationTracker.getRecords());
@@ -45,7 +46,7 @@ export const PronunciationHeatmap: React.FC = () => {
 
   const handleTestSpeech = async (targetWord: { char: string; pinyin: string; english: string }) => {
     if (!SpeechRecognitionService.isSupported()) {
-      alert('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
+      ToastStore.warning('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
       return;
     }
 

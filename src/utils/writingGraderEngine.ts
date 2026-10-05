@@ -4,6 +4,8 @@
  * composition evaluator for free-writing and essays.
  */
 
+import { generateGeminiText, getPreferredGeminiModel } from '../services/gemini';
+
 export interface GrammarIssue {
   id: string;
   type: 'particle' | 'measure_word' | 'aspect' | 'negation' | 'collocation' | 'word_order';
@@ -250,10 +252,6 @@ export const WritingGraderEngine = {
     }
 
     try {
-      const { GoogleGenerativeAI } = await import('@google/generative-ai');
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
       const prompt = `You are a certified senior HSK Mandarin Chinese examiner and linguistic evaluator.
 Analyze the following student writing passage and return a valid JSON object ONLY (no markdown formatting, no code fences):
 
@@ -279,8 +277,8 @@ Return JSON format:
   "nativeComment": string
 }`;
 
-      const response = await model.generateContent(prompt);
-      const responseText = response.response.text().trim();
+      const preferredModel = getPreferredGeminiModel();
+      const responseText = await generateGeminiText(apiKey, prompt, preferredModel);
       const cleaned = responseText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
       const parsed = JSON.parse(cleaned);
 

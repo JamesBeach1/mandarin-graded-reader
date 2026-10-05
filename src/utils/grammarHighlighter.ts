@@ -150,6 +150,10 @@ export function findGrammarPatterns(text: string): GrammarPatternMatch[] {
     let match: RegExpExecArray | null;
     const rx = new RegExp(pattern.regex.source, 'g');
     while ((match = rx.exec(text)) !== null) {
+      if (match[0].length === 0) {
+        rx.lastIndex++;
+        continue;
+      }
       matches.push({
         patternName: pattern.name,
         matchedText: match[0],

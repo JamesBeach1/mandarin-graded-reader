@@ -32,7 +32,24 @@ interface CharacterTooltipProps {
   onPracticeConfusable: (char: string) => void;
 }
 
-type InsightTab = 'none' | 'etymology' | 'lookalike' | 'homophone' | 'chengyu' | 'radical';
+function getToneSandhiHint(char: string, pinyin: string): string | null {
+  if (char === '不') {
+    return 'Tone Sandhi: 不 (bù) shifts to 2nd tone (bú) when followed by a 4th tone syllable (e.g. 不是 bú shì, 不对 bú duì).';
+  }
+  if (char === '一') {
+    return 'Tone Sandhi: 一 (yī) shifts to 2nd tone (yí) before a 4th tone (一个 yí gè), and 4th tone (yì) before 1st/2nd/3rd tones (一天 yì tiān).';
+  }
+  if (char.length === 2 && pinyin) {
+    const syllables = pinyin.split(/\s+/);
+    if (syllables.length === 2) {
+      const isThird = (s: string) => /[ǎěǐǒǔǚ]/i.test(s);
+      if (isThird(syllables[0]) && isThird(syllables[1])) {
+        return 'Tone Sandhi (3-3 → 2-3): The first syllable shifts to 2nd tone in natural speech (e.g. 你好 nǐ hǎo is spoken as ní hǎo).';
+      }
+    }
+  }
+  return null;
+}
 
 export const CharacterTooltip: React.FC<CharacterTooltipProps> = ({
   tooltip,
@@ -104,6 +121,7 @@ export const CharacterTooltip: React.FC<CharacterTooltipProps> = ({
   const lookalikeCluster = getConfusableCluster(tooltip.character);
   const isChengyu = Boolean(tooltip.content.isChengyu);
   const hasRadical = Boolean(tooltip.item.radical);
+  const sandhiHint = getToneSandhiHint(tooltip.character, tooltip.content.pinyin);
 
   const hasAnyInsights = Boolean(
     etymology || lookalikeCluster || homophoneInfo || isChengyu || hasRadical
@@ -204,6 +222,20 @@ export const CharacterTooltip: React.FC<CharacterTooltipProps> = ({
                 </span>
               )}
 
+              {tooltip.character.length > 1 && !isChengyu && (
+                <span style={{
+                  fontSize: '10px',
+                  backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                  color: 'var(--accent-indigo)',
+                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                  padding: '1px 6px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontWeight: 600
+                }}>
+                  词语 Compound Word
+                </span>
+              )}
+
               {isChengyu && (
                 <span style={{
                   fontSize: '10px',
@@ -242,6 +274,78 @@ export const CharacterTooltip: React.FC<CharacterTooltipProps> = ({
           <div className="tooltip-definition">
             {tooltip.content.definition}
           </div>
+
+          {/* Constituent Characters Decomposition for Multi-Character Words */}
+          {tooltip.character.length > 1 && (
+            <div style={{
+              margin: '8px 0 10px 0',
+              padding: '8px 10px',
+              backgroundColor: 'var(--bg-base)',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border-subtle)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
+                <span>组成汉字 · Constituent Characters</span>
+                <span style={{ fontSize: '10px', color: 'var(--accent-bamboo)' }}>{tooltip.character.length} characters</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {(tooltip.item?.constituentChars || Array.from(tooltip.character).map(c => ({ char: c, pinyin: '', definition: '' }))).map((comp, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      backgroundColor: 'var(--bg-surface)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', minWidth: 0, flex: 1 }}>
+                      <span style={{ fontSize: '16px', fontWeight: 600, fontFamily: 'var(--font-serif-zh)', color: 'var(--text-primary)' }}>
+                        {comp.char}
+                      </span>
+                      {comp.pinyin && (
+                        <span style={{ fontSize: '12px', color: 'var(--accent-gold)', fontStyle: 'italic', flexShrink: 0 }}>
+                          {comp.pinyin}
+                        </span>
+                      )}
+                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={comp.definition}>
+                        {comp.definition}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => onStrokeOrder(comp.char, comp.pinyin, comp.definition)}
+                      className="btn btn-secondary"
+                      style={{ padding: '2px 6px', fontSize: '10px', height: '22px', marginLeft: '6px', flexShrink: 0 }}
+                      title={`Inspect stroke order for ${comp.char}`}
+                    >
+                      🖌️
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Tone Sandhi Phonetic Note */}
+          {sandhiHint && (
+            <div style={{
+              margin: '8px 0',
+              padding: '7px 10px',
+              backgroundColor: 'rgba(230, 162, 60, 0.1)',
+              border: '1px solid rgba(230, 162, 60, 0.35)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '11px',
+              color: 'var(--accent-gold)',
+              lineHeight: 1.45
+            }}>
+              🗣️ {sandhiHint}
+            </div>
+          )}
 
           {/* Primary Action: Clear, well-proportioned Save to Flashcards button */}
           <button

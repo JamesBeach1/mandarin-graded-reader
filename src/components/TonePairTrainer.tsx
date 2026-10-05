@@ -77,8 +77,12 @@ export const TonePairTrainer: React.FC = () => {
 
   const handlePlayAudio = (pair: TonePairItem) => {
     setIsPlaying(true);
-    AzureSpeechService.speak(pair.word, 0.9, undefined, undefined);
-    setTimeout(() => setIsPlaying(false), 1400);
+    AzureSpeechService.speak(
+      pair.word,
+      { rate: 0.9 },
+      () => setIsPlaying(false),
+      () => setIsPlaying(false)
+    );
   };
 
   return (

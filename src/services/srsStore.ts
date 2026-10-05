@@ -89,14 +89,20 @@ const DB_NAME = 'MandarinGradedReaderSRS';
 const DB_VERSION = 1;
 const STORE_NAME = 'flashcards';
 
+let dbPromise: Promise<IDBDatabase> | null = null;
+
 function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
       reject(new Error('IndexedDB is not supported in this environment.'));
       return;
     }
     const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(request.error);
+    request.onerror = () => {
+      dbPromise = null;
+      reject(request.error);
+    };
     request.onsuccess = () => resolve(request.result);
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -105,6 +111,7 @@ function openDB(): Promise<IDBDatabase> {
       }
     };
   });
+  return dbPromise;
 }
 
 export async function getCard(character: string): Promise<Flashcard | null> {
@@ -150,6 +157,46 @@ export async function addCard(item: {
     const request = store.put(card);
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve();
+  });
+}
+
+export async function batchAddCards(items: Array<{
+  character: string;
+  pinyin: string;
+  definition: string;
+  hsk_level?: string;
+  exampleSentence?: string;
+  examplePinyin?: string;
+  exampleTranslation?: string;
+  deckId?: string;
+}>): Promise<void> {
+  if (items.length === 0) return;
+  const db = await openDB();
+  const settings = getSrsSettings();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+
+    transaction.onerror = () => reject(transaction.error);
+    transaction.oncomplete = () => resolve();
+
+    for (const item of items) {
+      const card: Flashcard = {
+        character: item.character,
+        pinyin: item.pinyin,
+        definition: item.definition,
+        hsk_level: item.hsk_level,
+        exampleSentence: item.exampleSentence,
+        examplePinyin: item.examplePinyin,
+        exampleTranslation: item.exampleTranslation,
+        deckId: item.deckId ?? 'default',
+        nextReviewDate: Date.now(),
+        interval: 0,
+        easeFactor: settings.initialEaseFactor,
+      };
+      store.put(card);
+    }
   });
 }
 

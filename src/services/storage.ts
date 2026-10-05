@@ -7,6 +7,8 @@ export const STORAGE_KEYS = {
   // Authentication & API Credentials
   GEMINI_API_KEY: 'gemini_api_key',
   GEMINI_MODEL: 'gemini_model',
+  DISCOVERED_GEMINI_MODELS: 'discovered_gemini_models',
+  DEPRECATED_GEMINI_MODELS: 'deprecated_gemini_models',
   AZURE_SPEECH_KEY: 'azure_speech_key',
   AZURE_SPEECH_REGION: 'azure_speech_region',
 
@@ -24,6 +26,8 @@ export const STORAGE_KEYS = {
   PINYIN_DISPLAY_MODE: 'moyun_pinyin_display_mode',
   HIDE_PINYIN_LEVEL: 'hide_pinyin_level',
   TONE_COLOR_MODE: 'moyun_tone_color_mode',
+  WORD_GROUPING_MODE: 'moyun_word_grouping_mode',
+  COMPOUND_WORDS_CACHE: 'moyun_compound_words_cache',
 
   // Analytics & History
   CHARACTERS_HEATMAP: 'characters_read_heatmap',
@@ -88,6 +92,24 @@ export class StorageService {
       localStorage.setItem(key, JSON.stringify(value));
     } catch (err) {
       console.warn(`[StorageService] Failed to serialize JSON for key "${key}":`, err);
+    }
+  }
+
+  /**
+   * Universal shorthand getter supporting JSON or strings with fallback.
+   */
+  static get<T = any>(key: StorageKey, defaultValue: T): T {
+    return this.getJson<T>(key, defaultValue);
+  }
+
+  /**
+   * Universal shorthand setter supporting JSON objects or primitives.
+   */
+  static set<T = any>(key: StorageKey, value: T): void {
+    if (typeof value === 'string') {
+      this.setItem(key, value);
+    } else {
+      this.setJson(key, value);
     }
   }
 }

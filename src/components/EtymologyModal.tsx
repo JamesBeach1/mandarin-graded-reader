@@ -112,7 +112,7 @@ export const EtymologyModal: React.FC<EtymologyModalProps> = ({
                 Hanzi Etymology & Radical Mnemonics (字源与拆字)
               </h3>
               <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-secondary)' }}>
-                Paleographic origins across the Six Writings (六书) with narrative memory hooks (SRS-006)
+                Paleographic origins across the Six Writings (六书) with narrative memory hooks
               </p>
             </div>
           </div>
@@ -270,7 +270,7 @@ export const EtymologyModal: React.FC<EtymologyModalProps> = ({
                         {activeEntry.pinyin}
                       </span>
                       <button
-                        onClick={() => AzureSpeechService.speak(activeEntry.character, 0.9)}
+                        onClick={() => AzureSpeechService.speak(activeEntry.character, { rate: 0.9 })}
                         style={{
                           background: 'none',
                           border: 'none',

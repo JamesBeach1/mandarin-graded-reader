@@ -73,10 +73,15 @@ export function searchDictionary(
       return;
     }
     // 7. Definition exact word match
-    const wordRegex = new RegExp(`\\b${cleanQuery}\\b`, 'i');
-    if (wordRegex.test(def)) {
-      scored.push({ item, score: 7 });
-      return;
+    try {
+      const escapedQuery = cleanQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const wordRegex = new RegExp(`\\b${escapedQuery}\\b`, 'i');
+      if (wordRegex.test(def)) {
+        scored.push({ item, score: 7 });
+        return;
+      }
+    } catch {
+      // Fallback if regex construction fails
     }
     // 8. Definition contains query substring
     if (def.includes(cleanQuery)) {

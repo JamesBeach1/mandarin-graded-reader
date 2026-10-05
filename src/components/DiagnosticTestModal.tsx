@@ -219,21 +219,25 @@ export const DiagnosticTestModal: React.FC<DiagnosticTestModalProps> = ({
   };
 
   // Calculate diagnostic result
-  let correctCount = 0;
-  DIAGNOSTIC_QUESTIONS.forEach(q => {
-    if (selectedAnswers[q.id] === q.correctIndex) {
-      correctCount++;
-    }
-  });
+  const { correctCount, percentage, recommendedLevel } = React.useMemo(() => {
+    let count = 0;
+    DIAGNOSTIC_QUESTIONS.forEach(q => {
+      if (selectedAnswers[q.id] === q.correctIndex) {
+        count++;
+      }
+    });
 
-  const percentage = Math.round((correctCount / DIAGNOSTIC_QUESTIONS.length) * 100);
-  let recommendedLevel = '1';
-  if (percentage >= 90) recommendedLevel = '6';
-  else if (percentage >= 75) recommendedLevel = '5';
-  else if (percentage >= 60) recommendedLevel = '4';
-  else if (percentage >= 45) recommendedLevel = '3';
-  else if (percentage >= 25) recommendedLevel = '2';
-  else recommendedLevel = '1';
+    const pct = Math.round((count / DIAGNOSTIC_QUESTIONS.length) * 100);
+    let level = '1';
+    if (pct >= 90) level = '6';
+    else if (pct >= 75) level = '5';
+    else if (pct >= 60) level = '4';
+    else if (pct >= 45) level = '3';
+    else if (pct >= 25) level = '2';
+    else level = '1';
+
+    return { correctCount: count, percentage: pct, recommendedLevel: level };
+  }, [selectedAnswers]);
 
   return (
     <div className="modal-backdrop">

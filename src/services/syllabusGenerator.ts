@@ -6,7 +6,14 @@
 
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import type { Course, Chapter, CourseNode, BiomeType } from '../types/Course';
-import { DEFAULT_GEMINI_MODEL } from './gemini';
+import { 
+  getPreferredGeminiModel, 
+  getDiscoveredOrBaselineModels, 
+  getDeprecatedModels, 
+  markModelAsDeprecated, 
+  extractSuggestedModelFromError, 
+  isModelDeprecatedOrUnavailableError 
+} from './gemini';
 import { STORAGE_KEYS } from './storage';
 
 export interface SyllabusGenerationParams {
@@ -163,21 +170,15 @@ CRITICAL CREATIVE & NARRATIVE MANDATES:
           { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
           { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
         ];
-        const preferredModel = localStorage.getItem(STORAGE_KEYS.GEMINI_MODEL) || DEFAULT_GEMINI_MODEL;
-        const modelsToTry = [
-          preferredModel,
-          'gemini-2.5-flash',
-          'gemini-2.5-flash-lite',
-          'gemini-3.8-flash',
-          'gemini-3.5-flash',
-          'gemini-3.1-flash-lite',
-          'gemini-2.5-pro',
-          'gemini-2.0-flash',
-          'gemini-1.5-flash'
-        ].filter((m, idx, arr) => Boolean(m) && arr.indexOf(m) === idx);
+        const preferredModel = getPreferredGeminiModel();
+        const available = getDiscoveredOrBaselineModels().map(m => m.id);
+        const deprecated = getDeprecatedModels();
+        const candidateQueue = [preferredModel, ...available]
+          .filter((m, idx, arr) => Boolean(m) && !deprecated.has(m.toLowerCase()) && arr.indexOf(m) === idx);
 
         let lastErr: unknown = null;
-        for (const modelId of modelsToTry) {
+        for (let i = 0; i < candidateQueue.length; i++) {
+          const modelId = candidateQueue[i];
           try {
             const model = genAI.getGenerativeModel({
               model: modelId,
@@ -185,10 +186,23 @@ CRITICAL CREATIVE & NARRATIVE MANDATES:
               generationConfig: { responseMimeType: 'application/json' }
             });
             const result = await model.generateContent(prompt);
-            return result.response.text();
-          } catch (err) {
+            const text = result.response.text();
+            if (text) {
+              if (modelId !== localStorage.getItem(STORAGE_KEYS.GEMINI_MODEL)) {
+                localStorage.setItem(STORAGE_KEYS.GEMINI_MODEL, modelId);
+              }
+              return text;
+            }
+          } catch (err: any) {
             console.warn(`Syllabus generation attempt with ${modelId} failed:`, err);
             lastErr = err;
+            if (isModelDeprecatedOrUnavailableError(err)) {
+              markModelAsDeprecated(modelId);
+              const suggested = extractSuggestedModelFromError(err?.message || String(err));
+              if (suggested && !candidateQueue.includes(suggested) && !deprecated.has(suggested.toLowerCase())) {
+                candidateQueue.splice(i + 1, 0, suggested);
+              }
+            }
           }
         }
         throw lastErr || new Error('All syllabus generation models failed');

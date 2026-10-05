@@ -6,7 +6,13 @@ import { exportStateBundle, importStateBundle } from '../services/stateHydration
 import { REGIONAL_ACCENT_PROFILES, saveStoredAccent, type RegionalAccent } from '../utils/accentProfiles';
 import type { TtsEngine, NeuralVoice, VoiceOption } from '../services/azureSpeech';
 import { StorageService, STORAGE_KEYS } from '../services/storage';
-import { AVAILABLE_GEMINI_MODELS, DEFAULT_GEMINI_MODEL, fetchAvailableGeminiModels } from '../services/gemini';
+import { 
+  getDiscoveredOrBaselineModels, 
+  getPreferredGeminiModel, 
+  fetchAvailableGeminiModels, 
+  type ParsedGeminiModel 
+} from '../services/gemini';
+import { ToastStore } from '../services/toastStore';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -59,11 +65,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onOpenDiagnostic,
   onStateRestored
 }) => {
+  const [availableModels, setAvailableModels] = useState<ParsedGeminiModel[]>(() => 
+    getDiscoveredOrBaselineModels()
+  );
   const [selectedGeminiModel, setSelectedGeminiModel] = useState<string>(() => 
-    StorageService.getItem(STORAGE_KEYS.GEMINI_MODEL, DEFAULT_GEMINI_MODEL)
+    getPreferredGeminiModel()
   );
   const [isDetectingModels, setIsDetectingModels] = useState(false);
-  const [detectedModels, setDetectedModels] = useState<string[]>([]);
   const [detectionStatus, setDetectionStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const handleAutoDetectModels = async () => {
@@ -81,25 +89,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           message: 'No models with content generation support were returned for this API key.'
         });
       } else {
-        setDetectedModels(models);
-        // Find best candidate from detected models
-        const candidatePriority = [
-          'gemini-2.5-flash',
-          'gemini-2.5-flash-lite',
-          'gemini-3.8-flash',
-          'gemini-3.5-flash',
-          'gemini-3.1-flash-lite',
-          'gemini-2.5-pro',
-          'gemini-2.0-flash',
-          'gemini-1.5-flash'
-        ];
-        const bestModel = candidatePriority.find(c => models.includes(c)) || models[0];
+        setAvailableModels(models);
+        // Models are pre-sorted in descending generational order with flash priority
+        const bestModel = models[0].id;
         setSelectedGeminiModel(bestModel);
         StorageService.setItem(STORAGE_KEYS.GEMINI_MODEL, bestModel);
         setDetectionStatus({
           type: 'success',
-          message: `Active models found (${models.length}): Auto-selected "${bestModel}"`
+          message: `Active models found (${models.length}): Auto-selected "${models[0].name}"`
         });
+        ToastStore.success(`Detected ${models.length} active models. Selected ${models[0].name}.`);
       }
     } catch (err: any) {
       setDetectionStatus({
@@ -115,9 +114,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     const res = await importStateBundle(file);
-    alert(res.message);
     if (res.success) {
+      ToastStore.success(res.message, 'State Restored');
       onStateRestored();
+    } else {
+      ToastStore.error(res.message, 'Restore Failed');
     }
   };
 
@@ -173,27 +174,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             className="form-select"
             style={{ width: '100%', marginBottom: '4px' }}
           >
-            {/* Standard Curated Models */}
-            <optgroup label="Recommended Production Models">
-              {AVAILABLE_GEMINI_MODELS.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.name} — {m.badge}
-                </option>
-              ))}
-            </optgroup>
-
-            {/* Any dynamically discovered models for this specific key */}
-            {detectedModels.length > 0 && (
-              <optgroup label="Live Models Detected on Your Key">
-                {detectedModels
-                  .filter(id => !AVAILABLE_GEMINI_MODELS.some(m => m.id === id))
-                  .map(id => (
-                    <option key={id} value={id}>
-                      {id} (Active)
-                    </option>
-                  ))}
-              </optgroup>
-            )}
+            {availableModels.map(m => (
+              <option key={m.id} value={m.id}>
+                {m.name} — {m.badge} {m.isRecommended ? '(Recommended)' : ''}
+              </option>
+            ))}
           </select>
 
           {detectionStatus ? (
@@ -216,7 +201,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           ) : (
             <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              Gemini 2.5 Flash is Google's active workhorse (~0.8s). Click "Auto-Detect Models" to test your API key against Google.
+              Models are dynamically discovered, sorted by generation, and self-healing. Click "Auto-Detect Models" to refresh active models for your key.
             </span>
           )}
         </div>

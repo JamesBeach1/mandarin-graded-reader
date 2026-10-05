@@ -99,7 +99,7 @@ export const ReviewWorkspace: React.FC<ReviewWorkspaceProps> = ({
           <button
             onClick={() => setShowGrammarSrsModal(true)}
             className="control-button"
-            title="Grammar Pattern Cloze syntax flashcards with SM-2 scheduling (SRS-002)"
+            title="Grammar Pattern Cloze syntax flashcards with SM-2 scheduling"
             style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-gold)', borderColor: 'var(--accent-gold)' }}
           >
             <BookOpen size={14} /> Grammar Cloze
@@ -107,7 +107,7 @@ export const ReviewWorkspace: React.FC<ReviewWorkspaceProps> = ({
           <button
             onClick={() => setShowCommuteModal(true)}
             className="control-button"
-            title="Hands-free Audio-Only Commute Mode for walking or driving (ALS-007)"
+            title="Hands-free Audio-Only Commute Mode for walking or driving"
             style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-bamboo)', borderColor: 'var(--accent-bamboo)' }}
           >
             <Headphones size={14} /> Commute Audio
@@ -115,7 +115,7 @@ export const ReviewWorkspace: React.FC<ReviewWorkspaceProps> = ({
           <button
             onClick={() => setShowCustomizerModal(true)}
             className="control-button"
-            title="Configure SRS Intervals, Ease Floors & Graduation Steps (SRS-010)"
+            title="Configure SRS Intervals, Ease Floors & Graduation Steps"
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <Sliders size={14} /> SRS Settings
@@ -123,7 +123,7 @@ export const ReviewWorkspace: React.FC<ReviewWorkspaceProps> = ({
           <button
             onClick={() => setShowDeckModal(true)}
             className="control-button"
-            title="Switch or manage Thematic Vocabulary Decks (SRS-004)"
+            title="Switch or manage Thematic Vocabulary Decks"
             style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-gold)', borderColor: 'var(--accent-gold)' }}
           >
             <FolderKanban size={14} /> {currentDeck.icon || '📁'} Deck: {currentDeck.name}
@@ -131,7 +131,7 @@ export const ReviewWorkspace: React.FC<ReviewWorkspaceProps> = ({
           <button
             onClick={() => setShowConfusableModal(true)}
             className="control-button"
-            title="Look-Alike (Visually Similar Hanzi) Quizzes (SRS-005)"
+            title="Look-Alike (Visually Similar Hanzi) Quizzes"
             style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--accent-gold)' }}
           >
             <Eye size={14} /> Look-Alike Drills
@@ -146,14 +146,14 @@ export const ReviewWorkspace: React.FC<ReviewWorkspaceProps> = ({
           <button
             onClick={() => AnkiExportService.downloadPlecoDeck()}
             className="control-button"
-            title="Export flashcards to Pleco user dictionary / flashcard format (SRS-008)"
+            title="Export flashcards to Pleco user dictionary / flashcard format"
           >
             <Download size={14} /> Export Pleco (.txt)
           </button>
           <button
             onClick={() => setShowLeaderboardModal(true)}
             className="control-button"
-            title="Opt-in Anonymous Weekly Reading Leaderboard (GTU-003)"
+            title="Opt-in Anonymous Weekly Reading Leaderboard"
             style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-gold)', borderColor: 'var(--accent-gold)' }}
           >
             <Trophy size={14} /> Leaderboard

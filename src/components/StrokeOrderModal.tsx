@@ -38,6 +38,8 @@ export const StrokeOrderModal: React.FC<StrokeOrderModalProps> = ({
   }, [character]);
 
   useEffect(() => {
+    let cancelled = false;
+
     if (!isOpen) {
       if (writerRef.current) {
         writerRef.current = null;
@@ -45,20 +47,35 @@ export const StrokeOrderModal: React.FC<StrokeOrderModalProps> = ({
       return;
     }
 
+    const runInit = () => {
+      if (!cancelled) {
+        initWriter(() => cancelled);
+      }
+    };
+
     // Load HanziWriter if not present
     if (typeof window !== 'undefined' && !(window as any).HanziWriter) {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js';
-      script.async = true;
-      script.onload = () => initWriter();
-      document.body.appendChild(script);
+      const existingScript = document.querySelector('script[src*="hanzi-writer"]');
+      if (existingScript) {
+        existingScript.addEventListener('load', runInit, { once: true });
+      } else {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js';
+        script.async = true;
+        script.onload = runInit;
+        document.body.appendChild(script);
+      }
     } else {
-      initWriter();
+      runInit();
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen, activeChar]);
 
-  const initWriter = () => {
-    if (!canvasRef.current || !(window as any).HanziWriter) return;
+  const initWriter = (isCancelled?: () => boolean) => {
+    if (!canvasRef.current || !(window as any).HanziWriter || (isCancelled && isCancelled())) return;
 
     canvasRef.current.innerHTML = '';
     const HanziWriter = (window as any).HanziWriter;
@@ -80,6 +97,7 @@ export const StrokeOrderModal: React.FC<StrokeOrderModalProps> = ({
 
       if (HanziWriter.loadCharacterData) {
         HanziWriter.loadCharacterData(activeChar).then((charData: any) => {
+          if (isCancelled && isCancelled()) return;
           if (charData && charData.strokes) {
             setStrokeCount(charData.strokes.length);
             setRawStrokeData(charData.strokes);

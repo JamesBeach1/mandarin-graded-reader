@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { ThematicDeck } from '../services/srsStore';
 import { getCustomDecks, saveCustomDecks, getAllCards, getDueCards } from '../services/srsStore';
 import { FolderPlus, Trash2, X, Check, BookOpen } from 'lucide-react';
+import { ToastStore } from '../services/toastStore';
 
 interface DeckManagementModalProps {
   isOpen: boolean;
@@ -61,12 +62,18 @@ export const DeckManagementModal: React.FC<DeckManagementModalProps> = ({
     loadData();
   };
 
-  const handleDeleteDeck = (id: string) => {
+  const handleDeleteDeck = async (id: string) => {
     if (id === 'all' || id === 'default') {
-      alert('System default decks cannot be deleted.');
+      ToastStore.warning('System default decks cannot be deleted.');
       return;
     }
-    if (!confirm('Delete this thematic deck playlist? (Card data will remain in your general deck).')) {
+    const confirmed = await ToastStore.confirm({
+      title: 'Delete Deck Playlist?',
+      message: 'Delete this thematic deck playlist? (Card data will remain in your general deck).',
+      confirmText: 'Delete Playlist',
+      type: 'danger'
+    });
+    if (!confirmed) {
       return;
     }
     const updated = decks.filter(d => d.id !== id);
@@ -75,6 +82,7 @@ export const DeckManagementModal: React.FC<DeckManagementModalProps> = ({
     if (activeDeckId === id) {
       onSelectDeck('all');
     }
+    ToastStore.success('Thematic deck playlist removed.');
     loadData();
   };
 

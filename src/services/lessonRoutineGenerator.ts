@@ -7,7 +7,14 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import type { Course, Chapter, CourseNode, OdysseyExercise } from '../types/Course';
 import { saveCourse } from './courseStore';
-import { DEFAULT_GEMINI_MODEL } from './gemini';
+import { 
+  getPreferredGeminiModel, 
+  getDiscoveredOrBaselineModels, 
+  getDeprecatedModels, 
+  markModelAsDeprecated, 
+  extractSuggestedModelFromError, 
+  isModelDeprecatedOrUnavailableError 
+} from './gemini';
 import { STORAGE_KEYS } from './storage';
 
 export interface RoutineGenerationParams {
@@ -213,20 +220,14 @@ RULES:
 4. Output ONLY raw JSON. Do not wrap in markdown fences.`;
 
       let text = '';
-      const preferredModel = localStorage.getItem(STORAGE_KEYS.GEMINI_MODEL) || DEFAULT_GEMINI_MODEL;
-      const modelsToTry = [
-        preferredModel,
-        'gemini-2.5-flash',
-        'gemini-2.5-flash-lite',
-        'gemini-3.8-flash',
-        'gemini-3.5-flash',
-        'gemini-3.1-flash-lite',
-        'gemini-2.5-pro',
-        'gemini-2.0-flash',
-        'gemini-1.5-flash'
-      ].filter((m, idx, arr) => Boolean(m) && arr.indexOf(m) === idx);
+      const preferredModel = getPreferredGeminiModel();
+      const available = getDiscoveredOrBaselineModels().map(m => m.id);
+      const deprecated = getDeprecatedModels();
+      const candidateQueue = [preferredModel, ...available]
+        .filter((m, idx, arr) => Boolean(m) && !deprecated.has(m.toLowerCase()) && arr.indexOf(m) === idx);
 
-      for (const modelId of modelsToTry) {
+      for (let i = 0; i < candidateQueue.length; i++) {
+        const modelId = candidateQueue[i];
         try {
           const model = genAI.getGenerativeModel({
             model: modelId,
@@ -235,9 +236,21 @@ RULES:
           });
           const result = await model.generateContent(prompt);
           text = result.response.text().trim();
-          if (text) break;
-        } catch (err) {
+          if (text) {
+            if (modelId !== localStorage.getItem(STORAGE_KEYS.GEMINI_MODEL)) {
+              localStorage.setItem(STORAGE_KEYS.GEMINI_MODEL, modelId);
+            }
+            break;
+          }
+        } catch (err: any) {
           console.warn(`Lesson routine generation failed with ${modelId}, trying fallback:`, err);
+          if (isModelDeprecatedOrUnavailableError(err)) {
+            markModelAsDeprecated(modelId);
+            const suggested = extractSuggestedModelFromError(err?.message || String(err));
+            if (suggested && !candidateQueue.includes(suggested) && !deprecated.has(suggested.toLowerCase())) {
+              candidateQueue.splice(i + 1, 0, suggested);
+            }
+          }
         }
       }
 

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { PitchTracker } from '../services/pitchTracker';
 import { Mic, Square, RefreshCw, Volume2 } from 'lucide-react';
 import { AzureSpeechService } from '../services/azureSpeech';
+import { ToastStore } from '../services/toastStore';
 
 interface ToneVisualizerCanvasProps {
   character: string;
@@ -142,7 +143,7 @@ export const ToneVisualizerCanvas: React.FC<ToneVisualizerCanvasProps> = ({
       updatePitch();
     } catch (err) {
       console.error('Microphone access denied:', err);
-      alert('Microphone access is required for real-time pitch tracking.');
+      ToastStore.warning('Microphone access is required for real-time pitch tracking.');
     }
   };
 
@@ -215,11 +216,11 @@ export const ToneVisualizerCanvas: React.FC<ToneVisualizerCanvasProps> = ({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
         <div className="tone-curve-legend">
           <div className="legend-item">
-            <div className="legend-color-dot" style={{ backgroundColor: '#1D3C45' }}></div>
+            <div className="legend-color-dot" style={{ backgroundColor: '#B8904D' }}></div>
             <span>Target Tone {targetTone}</span>
           </div>
           <div className="legend-item">
-            <div className="legend-color-dot" style={{ backgroundColor: '#E34234' }}></div>
+            <div className="legend-color-dot" style={{ backgroundColor: '#A33B3B' }}></div>
             <span>Your Pitch Curve</span>
           </div>
         </div>

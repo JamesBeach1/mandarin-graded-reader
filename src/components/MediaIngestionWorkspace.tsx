@@ -8,7 +8,8 @@ import { analyzeLexicalDensity, type LexicalAnalysisReport } from '../utils/lexi
 import { extractTargetVocabulary, type ExtractedVocabItem } from '../utils/vocabExtractor';
 import { tokenizeStory } from '../utils/tokenizer';
 import type { HanziItem } from '../types/HanziItem';
-import { addCard } from '../services/srsStore';
+import { addCard, batchAddCards } from '../services/srsStore';
+import { ToastStore } from '../services/toastStore';
 
 interface MediaIngestionWorkspaceProps {
   hanziData: HanziItem[];
@@ -56,7 +57,7 @@ export const MediaIngestionWorkspace: React.FC<MediaIngestionWorkspaceProps> = (
       }
     } catch (err) {
       console.error('Failed to parse EPUB:', err);
-      alert('Error parsing EPUB file. Please ensure it is a valid, unencrypted EPUB archive.');
+      ToastStore.error('Error parsing EPUB file. Please ensure it is a valid, unencrypted EPUB archive.');
     } finally {
       setIsProcessing(false);
     }
@@ -77,7 +78,7 @@ export const MediaIngestionWorkspace: React.FC<MediaIngestionWorkspaceProps> = (
       }
     } catch (err) {
       console.error('Failed to parse PDF:', err);
-      alert('Error parsing PDF file. Please ensure it is an unencrypted PDF document with extractable text.');
+      ToastStore.error('Error parsing PDF file. Please ensure it is an unencrypted PDF document with extractable text.');
     } finally {
       setIsProcessing(false);
     }
@@ -126,7 +127,7 @@ export const MediaIngestionWorkspace: React.FC<MediaIngestionWorkspaceProps> = (
       onLoadIntoReader(`OCR: ${file.name}`, tokens, ocrResult.text);
     } catch (err) {
       console.error('OCR Error:', err);
-      alert('Failed to process image OCR.');
+      ToastStore.error('Failed to process image OCR.');
     } finally {
       setIsProcessing(false);
     }
@@ -153,7 +154,7 @@ export const MediaIngestionWorkspace: React.FC<MediaIngestionWorkspaceProps> = (
       setExtractedVocab(targetVocab);
     } catch (err) {
       console.error('Subtitle parse error:', err);
-      alert('Failed to parse subtitle file.');
+      ToastStore.error('Failed to parse subtitle file.');
     }
   };
 
@@ -176,21 +177,23 @@ export const MediaIngestionWorkspace: React.FC<MediaIngestionWorkspaceProps> = (
   };
 
   const handleAddAllTargetVocabToSRS = async () => {
-    for (const item of extractedVocab) {
+    const cardsToAdd = extractedVocab.map(item => {
       let sentenceContext: string | undefined;
       if (selectedChapter?.rawText) {
         const sentenceMatch = selectedChapter.rawText.split(/[。！？\n]/).find(s => s.includes(item.character));
         if (sentenceMatch) sentenceContext = sentenceMatch.trim() + '。';
       }
-      await addCard({
+      return {
         character: item.character,
         pinyin: item.pinyin,
         definition: item.definition,
         hsk_level: item.hsk_level,
         exampleSentence: sentenceContext
-      });
-    }
-    alert(`Successfully added ${extractedVocab.length} words exceeding HSK ${knownHskFilter} to your flashcards queue!`);
+      };
+    });
+
+    await batchAddCards(cardsToAdd);
+    ToastStore.success(`Added ${extractedVocab.length} words exceeding HSK ${knownHskFilter} to your flashcards queue!`, 'Vocabulary Ingested');
   };
 
   return (

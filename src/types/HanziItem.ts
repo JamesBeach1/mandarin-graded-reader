@@ -12,4 +12,12 @@ export interface HanziItem {
   isChengyu?: boolean;
   chengyuLiteral?: string;
   chengyuAllusion?: string;
+  isCompound?: boolean;
+  constituentChars?: Array<{
+    char: string;
+    pinyin: string;
+    definition: string;
+    radical?: string;
+    strokes?: string;
+  }>;
 }

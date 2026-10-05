@@ -19,6 +19,7 @@ import { SyllabusGenerator } from '../services/syllabusGenerator';
 import { LessonRoutineGenerator } from '../services/lessonRoutineGenerator';
 import { PinyinImeDrillModal } from './PinyinImeDrillModal';
 import { Sparkles, GraduationCap, Award, BookCheck, Compass, MapPin, Keyboard } from 'lucide-react';
+import { ToastStore } from '../services/toastStore';
 
 interface LessonWorkspaceProps {
   activeLesson: Lesson | null;
@@ -410,7 +411,7 @@ export const LessonWorkspace: React.FC<LessonWorkspaceProps> = ({
               lesson={activeLesson}
               onLessonComplete={() => {
                 setActiveLesson(null);
-                alert('Congratulations! Lesson completed successfully.');
+                ToastStore.success('Lesson completed successfully!', '🎉 Congratulations!');
               }}
               onClose={() => setActiveLesson(null)}
             />

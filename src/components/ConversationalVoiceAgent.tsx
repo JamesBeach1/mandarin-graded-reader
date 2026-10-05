@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { Mic, Square, Volume2, Sparkles, User, Bot, RotateCcw, Coffee, Car, Home, Hotel, CheckCircle } from 'lucide-react';
 import { SpeechRecognitionService } from '../services/speechRecognition';
 import { AzureSpeechService } from '../services/azureSpeech';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { STORAGE_KEYS } from '../services/storage';
-import { DEFAULT_GEMINI_MODEL } from '../services/gemini';
+import { StorageService, STORAGE_KEYS } from '../services/storage';
+import { getPreferredGeminiModel, generateGeminiText } from '../services/gemini';
+import { ToastStore } from '../services/toastStore';
 
 export interface RoleplayPersona {
   id: string;
@@ -271,7 +271,7 @@ export const ConversationalVoiceAgent: React.FC = () => {
 
   const handleStartListening = async () => {
     if (!SpeechRecognitionService.isSupported()) {
-      alert('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
+      ToastStore.warning('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.');
       return;
     }
 
@@ -303,22 +303,11 @@ export const ConversationalVoiceAgent: React.FC = () => {
       let replyPinyin = '';
       let replyTranslation = '';
 
-      const apiKey = localStorage.getItem('gemini_api_key') || '';
+      const apiKey = StorageService.getItem(STORAGE_KEYS.GEMINI_API_KEY);
       let usedGemini = false;
 
       if (apiKey) {
-        const preferredModel = localStorage.getItem(STORAGE_KEYS.GEMINI_MODEL) || DEFAULT_GEMINI_MODEL;
-        const modelsToTry = [
-          preferredModel,
-          'gemini-2.5-flash',
-          'gemini-2.5-flash-lite',
-          'gemini-3.8-flash',
-          'gemini-3.5-flash',
-          'gemini-3.1-flash-lite',
-          'gemini-2.5-pro',
-          'gemini-2.0-flash',
-          'gemini-1.5-flash'
-        ].filter((m, idx, arr) => Boolean(m) && arr.indexOf(m) === idx);
+        const preferredModel = getPreferredGeminiModel();
         const prompt = `${activePersona.systemPrompt}
 Current situation: ${activePersona.location}.
 Mission target: ${activePersona.mission}.
@@ -326,20 +315,14 @@ The learner just said: "${userText}".
 Respond directly in character with 1-2 spoken Simplified Chinese sentences.
 Do NOT use markdown, pinyin, or English.`;
 
-        const genAI = new GoogleGenerativeAI(apiKey);
-        for (const modelId of modelsToTry) {
-          try {
-            const model = genAI.getGenerativeModel({ model: modelId });
-            const response = await model.generateContent(prompt);
-            const raw = response.response.text().trim();
-            if (raw && raw.length > 0) {
-              replyText = raw;
-              usedGemini = true;
-              break;
-            }
-          } catch (err) {
-            console.warn(`Gemini voice dialogue attempt with ${modelId} failed:`, err);
+        try {
+          const raw = await generateGeminiText(apiKey, prompt, preferredModel);
+          if (raw && raw.trim().length > 0) {
+            replyText = raw.trim();
+            usedGemini = true;
           }
+        } catch (err) {
+          console.warn('Gemini voice dialogue attempt failed, using offline fallback:', err);
         }
       }
 
@@ -374,7 +357,7 @@ Do NOT use markdown, pinyin, or English.`;
       setActiveVoicePrompt('Spoken reply received. Press the mic to reply.');
 
       // Synthesize spoken agent reply
-      AzureSpeechService.speak(replyText, 0.95);
+      AzureSpeechService.speak(replyText, { rate: 0.95 });
     } catch (err) {
       console.error('Roleplay voice agent error:', err);
       setIsListening(false);
@@ -384,7 +367,7 @@ Do NOT use markdown, pinyin, or English.`;
   };
 
   const handleSpeakMessage = (text: string) => {
-    AzureSpeechService.speak(text, 0.95);
+    AzureSpeechService.speak(text, { rate: 0.95 });
   };
 
   return (

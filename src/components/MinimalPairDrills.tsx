@@ -43,8 +43,12 @@ export const MinimalPairDrills: React.FC = () => {
 
   const playTargetAudio = (char: string) => {
     setIsPlaying(true);
-    AzureSpeechService.speak(char, 0.85);
-    setTimeout(() => setIsPlaying(false), 800);
+    AzureSpeechService.speak(
+      char,
+      { rate: 0.85 },
+      () => setIsPlaying(false),
+      () => setIsPlaying(false)
+    );
   };
 
   const handleSelectOption = (choice: 'A' | 'B') => {
@@ -352,7 +356,7 @@ export const MinimalPairDrills: React.FC = () => {
               {/* Side-by-Side Comparison Audio */}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
-                  onClick={() => AzureSpeechService.speak(activePair.itemA.char, 0.85)}
+                  onClick={() => AzureSpeechService.speak(activePair.itemA.char, { rate: 0.85 })}
                   style={{
                     padding: '4px 10px',
                     fontSize: '11px',
@@ -369,7 +373,7 @@ export const MinimalPairDrills: React.FC = () => {
                   <Volume2 size={12} /> Play {activePair.itemA.char}
                 </button>
                 <button
-                  onClick={() => AzureSpeechService.speak(activePair.itemB.char, 0.85)}
+                  onClick={() => AzureSpeechService.speak(activePair.itemB.char, { rate: 0.85 })}
                   style={{
                     padding: '4px 10px',
                     fontSize: '11px',
