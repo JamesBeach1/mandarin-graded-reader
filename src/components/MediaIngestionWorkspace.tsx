@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
-import { BookOpen, Upload, FileText, Video, Image, CheckCircle, BarChart2 } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { 
+  BookOpen, Upload, FileText, Video, Image, CheckCircle, BarChart2,
+  ClipboardPaste, Bookmark, Trash2, Sparkles, Check, RotateCcw
+} from 'lucide-react';
 import { EpubParser, type ParsedEpubBook, type EpubChapter } from '../services/epubParser';
 import { PdfParser, type ParsedPdfDocument, type PdfPage } from '../services/pdfParser';
 import { OcrService } from '../services/ocrService';
@@ -10,6 +13,35 @@ import { tokenizeStory } from '../utils/tokenizer';
 import type { HanziItem } from '../types/HanziItem';
 import { addCard, batchAddCards } from '../services/srsStore';
 import { ToastStore } from '../services/toastStore';
+import { saveStory } from '../services/libraryStore';
+
+const SAMPLE_CHINESE_TEXTS = [
+  {
+    title: '咖啡馆与燕麦奶拿铁 (Ordering Oat Milk Latte)',
+    level: 'HSK 2-3',
+    text: `今天下午阳光很好，我走进街角的一家独立咖啡馆。
+店员热情地和我打招呼：“您好，请问今天想喝点什么？”
+我说：“我要一杯热拿铁，可以把牛奶换成燕麦奶吗？微糖，谢谢。”
+店员微笑着点头：“没问题，燕麦奶拿铁微糖，堂食还是带走？”
+“在店里喝。”
+不一会儿，一杯冒着香气的燕麦奶拿铁就端到了我的桌前。上面的拉花像一片漂亮的羽毛，入口非常丝滑香醇。`
+  },
+  {
+    title: '逛北京胡同与胡同小吃 (Beijing Hutong Culture)',
+    level: 'HSK 3-4',
+    text: `北京的胡同是这座历史古城最生动的心跳。
+漫步在窄窄的巷子里，两旁是古朴的灰墙青瓦，门前种着高大的槐树。老人坐在树荫下摇着蒲扇下象棋，小猫懒洋洋地躺在院门边晒太阳。
+拐角处有一家开了三十年的老字号小吃店，锅里正冒着滚滚热气。芝麻烧饼外酥里嫩，羊杂汤香气四溢。
+在这里，时间仿佛变慢了，现代城市的喧嚣被隔绝在青砖红门之外。`
+  },
+  {
+    title: '人工智能与语言学习 (AI & Modern Learning)',
+    level: 'HSK 4-5',
+    text: `随着人工智能大语言模型的飞速发展，外语学习的方式正在经历一场前所未有的深刻变革。
+过去，学习者往往受限于语言环境匮乏和师资成本高昂，难以获得即时的发音纠正与语境沉浸。如今，智能分级阅读系统可以根据学习者的具体词汇掌握度，动态解析每一个汉字、成语和多字词。
+无论是在咖啡馆阅读长篇文章，还是在日常通勤中练习听力，科技都让高效的自主学习成为触手可及的现实。`
+  }
+];
 
 interface MediaIngestionWorkspaceProps {
   hanziData: HanziItem[];
@@ -24,7 +56,13 @@ export const MediaIngestionWorkspace: React.FC<MediaIngestionWorkspaceProps> = (
   overridesMap,
   onLoadIntoReader
 }) => {
-  const [activeMediaTab, setActiveMediaTab] = useState<'epub' | 'pdf' | 'ocr' | 'subtitles'>('epub');
+  const [activeMediaTab, setActiveMediaTab] = useState<'paste' | 'epub' | 'pdf' | 'ocr' | 'subtitles'>('paste');
+  
+  // Free text paste state
+  const [pastedText, setPastedText] = useState('');
+  const [pastedTitle, setPastedTitle] = useState('');
+  const [isSavingToLibrary, setIsSavingToLibrary] = useState(false);
+
   const [parsedBook, setParsedBook] = useState<ParsedEpubBook | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<EpubChapter | null>(null);
 
@@ -41,6 +79,71 @@ export const MediaIngestionWorkspace: React.FC<MediaIngestionWorkspaceProps> = (
   const [lexicalReport, setLexicalReport] = useState<LexicalAnalysisReport | null>(null);
   const [extractedVocab, setExtractedVocab] = useState<ExtractedVocabItem[]>([]);
   const [knownHskFilter, setKnownHskFilter] = useState<number>(2);
+
+  // Live lexical analysis for pasted text
+  const pastedAnalysis = useMemo(() => {
+    const trimmed = pastedText.trim();
+    if (!trimmed) return null;
+    const tokens = tokenizeStory(trimmed, hanziData, vocabData, overridesMap);
+    const report = analyzeLexicalDensity(tokens);
+    const targetVocab = extractTargetVocabulary(tokens, knownHskFilter);
+    const hanziCount = (trimmed.match(/[\u4E00-\u9FFF]/g) || []).length;
+    return {
+      tokens,
+      report,
+      targetVocab,
+      charCount: trimmed.length,
+      hanziCount
+    };
+  }, [pastedText, hanziData, vocabData, overridesMap, knownHskFilter]);
+
+  const handleReadPastedText = () => {
+    if (!pastedText.trim()) {
+      ToastStore.warning('Please paste or enter some Chinese text first.');
+      return;
+    }
+    const tokens = pastedAnalysis?.tokens || tokenizeStory(pastedText, hanziData, vocabData, overridesMap);
+    let title = pastedTitle.trim();
+    if (!title) {
+      const firstLine = pastedText.split('\n').map(l => l.trim()).find(l => l.length > 0) || '';
+      title = firstLine.length > 24 ? firstLine.slice(0, 24) + '...' : firstLine || 'Custom Chinese Text';
+    }
+    onLoadIntoReader(title, tokens, pastedText);
+    ToastStore.success(`Opened "${title}" in Graded Reader!`);
+  };
+
+  const handleSavePastedTextToLibrary = async () => {
+    if (!pastedText.trim()) {
+      ToastStore.warning('Please paste or enter some Chinese text first.');
+      return;
+    }
+    let title = pastedTitle.trim();
+    if (!title) {
+      const firstLine = pastedText.split('\n').map(l => l.trim()).find(l => l.length > 0) || '';
+      title = firstLine.length > 24 ? firstLine.slice(0, 24) + '...' : firstLine || 'Custom Chinese Text';
+    }
+    setIsSavingToLibrary(true);
+    try {
+      const estimatedHsk = pastedAnalysis?.report.estimatedHSKLevel ? String(pastedAnalysis.report.estimatedHSKLevel) : '3';
+      await saveStory({
+        title,
+        text: pastedText,
+        hskLevel: estimatedHsk
+      });
+      ToastStore.success(`Saved "${title}" to your offline story library!`);
+    } catch (err) {
+      console.error('Failed to save to library:', err);
+      ToastStore.error('Failed to save story to library.');
+    } finally {
+      setIsSavingToLibrary(false);
+    }
+  };
+
+  const handleLoadSampleText = (sample: typeof SAMPLE_CHINESE_TEXTS[0]) => {
+    setPastedTitle(sample.title);
+    setPastedText(sample.text);
+    ToastStore.info(`Loaded sample: ${sample.title}`);
+  };
 
   // EPUB file upload
   const handleEpubUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,11 +319,32 @@ export const MediaIngestionWorkspace: React.FC<MediaIngestionWorkspaceProps> = (
             Media Ingestion & Extensive Reading
           </h2>
           <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
-            Import EPUB novels, Chinese PDF documents, scanned images (OCR), or video subtitle tracks with automated lexical density scoring.
+            Paste custom Chinese text, or import EPUB novels, Chinese PDF documents, OCR scans, and video subtitles with automated lexical analysis.
           </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'var(--bg-base)', padding: '4px', borderRadius: 'var(--radius-sm)' }}>
+          <button
+            onClick={() => setActiveMediaTab('paste')}
+            style={{
+              padding: '6px 14px',
+              fontSize: '12px',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              borderRadius: 'var(--radius-sm)',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: activeMediaTab === 'paste' ? 'var(--border-strong)' : 'transparent',
+              color: activeMediaTab === 'paste' ? 'var(--text-primary)' : 'var(--text-muted)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <ClipboardPaste size={13} /> Paste Text
+          </button>
           <button
             onClick={() => setActiveMediaTab('epub')}
             style={{
@@ -307,6 +431,262 @@ export const MediaIngestionWorkspace: React.FC<MediaIngestionWorkspaceProps> = (
           </button>
         </div>
       </div>
+
+      {/* Free Text Paste Mode */}
+      {activeMediaTab === 'paste' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{
+            padding: '24px',
+            backgroundColor: 'var(--bg-surface)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-subtle)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ClipboardPaste size={18} color="var(--accent-bamboo)" /> Paste or Type Chinese Text
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  Paste any Chinese article, dialogue, book excerpt, or news story. Moyun will instantly segment words, analyze HSK level, and launch the interactive Graded Reader.
+                </p>
+              </div>
+
+              {pastedText && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPastedText('');
+                    setPastedTitle('');
+                  }}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '11px', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                >
+                  <Trash2 size={12} /> Clear Text
+                </button>
+              )}
+            </div>
+
+            {/* Quick Sample Text Chips */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', paddingTop: '4px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Sparkles size={12} color="var(--accent-gold)" /> Quick Samples:
+              </span>
+              {SAMPLE_CHINESE_TEXTS.map((sample, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleLoadSampleText(sample)}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '11px', padding: '3px 9px', borderRadius: 'var(--radius-pill)' }}
+                  title={`Load "${sample.title}"`}
+                >
+                  {sample.title.split(' ')[0]} ({sample.level})
+                </button>
+              ))}
+            </div>
+
+            {/* Title Input */}
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                Story / Article Title <span style={{ color: 'var(--text-muted)' }}>(Optional — defaults to first line)</span>
+              </label>
+              <input
+                type="text"
+                value={pastedTitle}
+                onChange={(e) => setPastedTitle(e.target.value)}
+                placeholder="e.g. Ordering Coffee in Chengdu, or leave blank to auto-detect title..."
+                className="form-input"
+                style={{ width: '100%', fontSize: '13px' }}
+              />
+            </div>
+
+            {/* Textarea Area */}
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                Chinese Text Content
+              </label>
+              <textarea
+                value={pastedText}
+                onChange={(e) => setPastedText(e.target.value)}
+                placeholder={"Paste your Chinese text here... \n\n例如：\n今天下午阳光很好，我走进街角的一家咖啡馆。\n店员热情地问：“您好，请问想喝点什么？”\n我说：“我要一杯燕麦奶拿铁，微糖，谢谢。”"}
+                rows={11}
+                className="form-input"
+                style={{
+                  width: '100%',
+                  fontFamily: 'var(--font-serif-zh)',
+                  fontSize: '16px',
+                  lineHeight: 1.8,
+                  padding: '14px 16px',
+                  resize: 'vertical',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            {/* Live Stats Bar & Main Action Buttons */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '12px',
+              paddingTop: '8px',
+              borderTop: '1px solid var(--border-subtle)'
+            }}>
+              {/* Badges */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '12px' }}>
+                <span style={{
+                  padding: '3px 8px',
+                  borderRadius: 'var(--radius-pill)',
+                  backgroundColor: 'var(--bg-base)',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-secondary)'
+                }}>
+                  📝 <strong>{pastedAnalysis?.charCount || 0}</strong> chars ({pastedAnalysis?.hanziCount || 0} Hanzi)
+                </span>
+
+                {pastedAnalysis && (
+                  <>
+                    <span style={{
+                      padding: '3px 8px',
+                      borderRadius: 'var(--radius-pill)',
+                      backgroundColor: 'rgba(88, 204, 2, 0.1)',
+                      border: '1px solid rgba(88, 204, 2, 0.3)',
+                      color: 'var(--accent-bamboo)',
+                      fontWeight: 600
+                    }}>
+                      📊 Est. HSK {pastedAnalysis.report.estimatedHSKLevel}
+                    </span>
+                    <span style={{
+                      padding: '3px 8px',
+                      borderRadius: 'var(--radius-pill)',
+                      backgroundColor: 'var(--bg-base)',
+                      border: '1px solid var(--border-subtle)',
+                      color: 'var(--text-muted)'
+                    }}>
+                      🎯 {pastedAnalysis.targetVocab.length} Target Words (&gt; HSK {knownHskFilter})
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={handleSavePastedTextToLibrary}
+                  disabled={!pastedText.trim() || isSavingToLibrary}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '12px', padding: '8px 14px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  title="Save to your local offline library"
+                >
+                  <Bookmark size={14} /> {isSavingToLibrary ? 'Saving...' : 'Save to Library'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleReadPastedText}
+                  disabled={!pastedText.trim()}
+                  className="btn btn-primary"
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    padding: '8px 22px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    opacity: pastedText.trim() ? 1 : 0.6
+                  }}
+                  title="Open this text in the Graded Reading Theater"
+                >
+                  <BookOpen size={15} /> Open in Graded Reader
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Lexical Analysis & Vocabulary Extraction Cards for Pasted Text */}
+          {pastedAnalysis && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+              {/* Card 1: Lexical Density Report */}
+              <div style={{ padding: '20px', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <BarChart2 size={18} color="var(--accent-bamboo)" />
+                  <h4 style={{ margin: 0, fontSize: '15px', color: 'var(--text-primary)' }}>Lexical Density & Level</h4>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Estimated Level:</span>
+                    <strong style={{ color: 'var(--accent-bamboo)' }}>HSK {pastedAnalysis.report.estimatedHSKLevel}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Type-Token Ratio (TTR):</span>
+                    <strong>{pastedAnalysis.report.typeTokenRatio} ({pastedAnalysis.report.lexicalDensityPercentage}%)</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Unique / Total Hanzi:</span>
+                    <span>{pastedAnalysis.report.uniqueCharacters} / {pastedAnalysis.report.totalCharacters}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Target Vocabulary Extraction */}
+              <div style={{ padding: '20px', backgroundColor: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <h4 style={{ margin: 0, fontSize: '15px', color: 'var(--text-primary)' }}>
+                    Target Words (&gt; HSK {knownHskFilter})
+                  </h4>
+                  {pastedAnalysis.targetVocab.length > 0 && (
+                    <button
+                      onClick={async () => {
+                        const cardsToAdd = pastedAnalysis.targetVocab.map(item => {
+                          let sentenceContext: string | undefined;
+                          if (pastedText) {
+                            const sentenceMatch = pastedText.split(/[。！？\n]/).find(s => s.includes(item.character));
+                            if (sentenceMatch) sentenceContext = sentenceMatch.trim() + '。';
+                          }
+                          return {
+                            character: item.character,
+                            pinyin: item.pinyin,
+                            definition: item.definition,
+                            hsk_level: item.hsk_level,
+                            exampleSentence: sentenceContext
+                          };
+                        });
+                        await batchAddCards(cardsToAdd);
+                        ToastStore.success(`Added ${pastedAnalysis.targetVocab.length} words to flashcards!`, 'Vocabulary Ingested');
+                      }}
+                      className="btn btn-bamboo"
+                      style={{ padding: '4px 10px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <CheckCircle size={12} /> Add All ({pastedAnalysis.targetVocab.length})
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ maxHeight: '140px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {pastedAnalysis.targetVocab.length === 0 ? (
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      All words in this text are within HSK {knownHskFilter} or common vocabulary.
+                    </span>
+                  ) : (
+                    pastedAnalysis.targetVocab.slice(0, 10).map(v => (
+                      <div key={v.character} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '4px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <span><strong style={{ fontFamily: 'var(--font-serif-zh)' }}>{v.character}</strong> ({v.pinyin}): {v.definition.slice(0, 24)}...</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>x{v.occurrenceCount}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* EPUB Ingestion Mode */}
       {activeMediaTab === 'epub' && (

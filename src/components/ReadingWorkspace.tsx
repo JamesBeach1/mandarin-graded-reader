@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import type { HanziItem } from '../types/HanziItem';
 import type { SavedStory } from '../services/libraryStore';
 import { ReadingTheater } from './ReadingTheater';
-import { Sparkles, Library, Trash2, BookOpen, Search, Upload } from 'lucide-react';
+import { Sparkles, Library, Trash2, BookOpen, Search, Upload, ClipboardPaste, X } from 'lucide-react';
 import { SemanticSearchEngine } from '../services/semanticSearch';
 import { StoryShareModal } from './StoryShareModal';
 import type { MoyunStoryPackage } from '../utils/storyShare';
@@ -28,6 +28,8 @@ interface ReadingWorkspaceProps {
   librarySearchQuery: string;
   setLibrarySearchQuery: (val: string) => void;
   onImportStory?: (pkg: MoyunStoryPackage) => void;
+  onOpenImportWorkspace?: () => void;
+  onPasteTextIntoReader?: (title: string, rawText: string) => void;
 }
 
 export const ReadingWorkspace: React.FC<ReadingWorkspaceProps> = ({
@@ -50,9 +52,15 @@ export const ReadingWorkspace: React.FC<ReadingWorkspaceProps> = ({
   onDeleteSavedStory,
   librarySearchQuery,
   setLibrarySearchQuery,
-  onImportStory
+  onImportStory,
+  onOpenImportWorkspace,
+  onPasteTextIntoReader
 }) => {
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showPasteModal, setShowPasteModal] = useState(false);
+  const [quickPastedTitle, setQuickPastedTitle] = useState('');
+  const [quickPastedText, setQuickPastedText] = useState('');
+
   const filteredStories = librarySearchQuery.trim()
     ? SemanticSearchEngine.searchStories(librarySearchQuery, savedStories).map(r => r.story)
     : savedStories;
@@ -62,7 +70,7 @@ export const ReadingWorkspace: React.FC<ReadingWorkspaceProps> = ({
       
       {/* Story Generator Card */}
       <div className="container print-hide">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 500, color: 'var(--text-primary)' }}>
               Generate Graded Story
@@ -71,9 +79,21 @@ export const ReadingWorkspace: React.FC<ReadingWorkspaceProps> = ({
               Generate custom stories strictly constrained to HSK 1–6 vocabulary and grammar.
             </p>
           </div>
-          <span style={{ fontSize: '12px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
-            Target: HSK {hskLevel}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              type="button"
+              onClick={() => setShowPasteModal(true)}
+              className="btn btn-secondary"
+              style={{ fontSize: '12px', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              title="Paste your own Chinese text to read in the Graded Reader"
+            >
+              <ClipboardPaste size={14} color="var(--accent-bamboo)" />
+              Paste Chinese Text
+            </button>
+            <span style={{ fontSize: '12px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
+              Target: HSK {hskLevel}
+            </span>
+          </div>
         </div>
 
         <form onSubmit={onGenerateStory} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -264,6 +284,127 @@ export const ReadingWorkspace: React.FC<ReadingWorkspaceProps> = ({
           }
         }}
       />
+
+      {/* Quick Paste Chinese Text Modal */}
+      {showPasteModal && (
+        <div className="modal-overlay" onClick={() => setShowPasteModal(false)} style={{ zIndex: 1100 }}>
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '620px', width: '92%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '14px', borderBottom: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ClipboardPaste size={20} color="var(--accent-bamboo)" />
+                <h3 style={{ margin: 0, fontSize: '17px', color: 'var(--text-primary)', fontFamily: 'var(--font-serif-zh)' }}>
+                  Paste Chinese Text
+                </h3>
+              </div>
+              <button onClick={() => setShowPasteModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ margin: '12px 0 16px 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
+              Paste any Chinese text here to immediately launch it into the Graded Reader with interactive word lookups, Pinyin, stroke order, and audio.
+            </p>
+
+            {/* Title Input */}
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                Title (Optional)
+              </label>
+              <input
+                type="text"
+                value={quickPastedTitle}
+                onChange={(e) => setQuickPastedTitle(e.target.value)}
+                placeholder="Leave blank to auto-detect from first line..."
+                className="form-input"
+                style={{ width: '100%', fontSize: '13px' }}
+              />
+            </div>
+
+            {/* Textarea */}
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                  Chinese Content
+                </label>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  {quickPastedText.length} characters ({(quickPastedText.match(/[\u4E00-\u9FFF]/g) || []).length} Hanzi)
+                </span>
+              </div>
+              <textarea
+                value={quickPastedText}
+                onChange={(e) => setQuickPastedText(e.target.value)}
+                placeholder={"Paste Chinese text here... \n\n例如：\n今天下午阳光很好，我和朋友一起在咖啡馆喝茶聊天。"}
+                rows={9}
+                className="form-input"
+                style={{
+                  width: '100%',
+                  fontFamily: 'var(--font-serif-zh)',
+                  fontSize: '15px',
+                  lineHeight: 1.8,
+                  padding: '12px 14px',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            {/* Footer / Actions */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)' }}>
+              {onOpenImportWorkspace ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasteModal(false);
+                    onOpenImportWorkspace();
+                  }}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '12px', padding: '6px 12px' }}
+                >
+                  Need file / OCR import? Go to Import Studio →
+                </button>
+              ) : <div />}
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowPasteModal(false)}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '13px', padding: '7px 14px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!quickPastedText.trim()}
+                  onClick={() => {
+                    const text = quickPastedText.trim();
+                    if (!text) return;
+                    let title = quickPastedTitle.trim();
+                    if (!title) {
+                      const firstLine = text.split('\n').map(l => l.trim()).find(l => l.length > 0) || '';
+                      title = firstLine.length > 24 ? firstLine.slice(0, 24) + '...' : firstLine || 'Custom Chinese Text';
+                    }
+                    if (onPasteTextIntoReader) {
+                      onPasteTextIntoReader(title, text);
+                    }
+                    setShowPasteModal(false);
+                    setQuickPastedText('');
+                    setQuickPastedTitle('');
+                  }}
+                  className="btn btn-primary"
+                  style={{ fontSize: '13px', fontWeight: 600, padding: '7px 18px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <BookOpen size={14} /> Open in Graded Reader
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

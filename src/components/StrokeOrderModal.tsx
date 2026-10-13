@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   X, Play, Pause, RotateCcw, ArrowRight, ArrowLeft,
-  BookOpen, Info, CheckCircle2, Layers
+  BookOpen, Info, CheckCircle2, Layers, Edit3, Sparkles
 } from 'lucide-react';
 import { StrokeOrderService, STROKE_ORDER_RULES } from '../utils/strokeOrderData';
 import type { HanziWriterInstance } from '../types/hanzi-writer';
@@ -21,21 +21,48 @@ export const StrokeOrderModal: React.FC<StrokeOrderModalProps> = ({
   pinyin = '',
   definition = ''
 }) => {
-  const [activeChar, setActiveChar] = useState(character || '好');
+  // Extract individual Chinese characters if character is a multi-char compound word (e.g. 咖啡馆)
+  const hanziChars = useMemo(() => {
+    if (!character) return ['好'];
+    const matches = character.match(/[\u4E00-\u9FFF]/g);
+    return matches && matches.length > 0 ? matches : [character[0] || '好'];
+  }, [character]);
+
+  const [activeChar, setActiveChar] = useState<string>(() => {
+    const matches = character ? character.match(/[\u4E00-\u9FFF]/g) : null;
+    return matches && matches.length > 0 ? matches[0] : (character ? character[0] : '好');
+  });
+
   const [strokeCount, setStrokeCount] = useState<number>(0);
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isQuizzing, setIsQuizzing] = useState(false);
+  const [isQuizComplete, setIsQuizComplete] = useState(false);
+  const [showOutlineHint, setShowOutlineHint] = useState(true);
   const [showRules, setShowRules] = useState(false);
   const [rawStrokeData, setRawStrokeData] = useState<string[]>([]);
 
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const writerRef = useRef<HanziWriterInstance | null>(null);
 
+  // Sync active character when input character changes
   useEffect(() => {
-    if (character) {
-      setActiveChar(character);
+    if (hanziChars.length > 0) {
+      setActiveChar(hanziChars[0]);
     }
-  }, [character]);
+  }, [character, hanziChars]);
+
+  // Compute pinyin for the active character when inspecting a compound word
+  const activePinyin = useMemo(() => {
+    if (!pinyin) return '';
+    if (hanziChars.length <= 1) return pinyin;
+    const parts = pinyin.trim().split(/\s+/);
+    const activeIdx = hanziChars.indexOf(activeChar);
+    if (activeIdx >= 0 && parts[activeIdx]) {
+      return parts[activeIdx];
+    }
+    return pinyin;
+  }, [pinyin, hanziChars, activeChar]);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,17 +98,23 @@ export const StrokeOrderModal: React.FC<StrokeOrderModalProps> = ({
 
     return () => {
       cancelled = true;
+      if (writerRef.current) {
+        try {
+          writerRef.current.cancelQuiz();
+        } catch (e) {}
+      }
     };
   }, [isOpen, activeChar]);
 
   const initWriter = (isCancelled?: () => boolean) => {
     if (!canvasRef.current || !(window as any).HanziWriter || (isCancelled && isCancelled())) return;
 
+    const targetChar = (activeChar && activeChar.length > 0) ? activeChar[0] : '好';
     canvasRef.current.innerHTML = '';
     const HanziWriter = (window as any).HanziWriter;
 
     try {
-      const writer = HanziWriter.create(canvasRef.current, activeChar, {
+      const writer = HanziWriter.create(canvasRef.current, targetChar, {
         width: 260,
         height: 260,
         padding: 24,
@@ -89,14 +122,16 @@ export const StrokeOrderModal: React.FC<StrokeOrderModalProps> = ({
         delayBetweenStrokes: 250,
         strokeColor: '#B03A2E', // traditional seal cinnabar
         radicalColor: '#3F6B57', // jade green for radical
-        outlineColor: 'rgba(160, 160, 165, 0.25)',
+        outlineColor: 'rgba(160, 160, 165, 0.28)',
+        drawingColor: '#2B4C3F', // bamboo ink for interactive user strokes
+        drawingWidth: 5,
         showOutline: true,
         showCharacter: true
       });
       writerRef.current = writer;
 
       if (HanziWriter.loadCharacterData) {
-        HanziWriter.loadCharacterData(activeChar).then((charData: any) => {
+        HanziWriter.loadCharacterData(targetChar).then((charData: any) => {
           if (isCancelled && isCancelled()) return;
           if (charData && charData.strokes) {
             setStrokeCount(charData.strokes.length);
@@ -104,7 +139,7 @@ export const StrokeOrderModal: React.FC<StrokeOrderModalProps> = ({
             setCurrentStep(charData.strokes.length);
           }
         }).catch((err: any) => {
-          console.warn('Error loading Hanzi strokes data:', err);
+          console.warn('Error loading Hanzi strokes data for', targetChar, err);
         });
       }
     } catch (e) {
@@ -114,9 +149,38 @@ export const StrokeOrderModal: React.FC<StrokeOrderModalProps> = ({
 
   if (!isOpen) return null;
 
+  const handleStartQuiz = () => {
+    if (!writerRef.current) return;
+    setIsPlaying(false);
+    setIsQuizComplete(false);
+    setIsQuizzing(true);
+
+    try {
+      writerRef.current.cancelQuiz();
+    } catch (e) {}
+
+    writerRef.current.quiz({
+      showOutline: showOutlineHint,
+      showHintAfterMisses: 2,
+      highlightOnComplete: true,
+      onComplete: () => {
+        setIsQuizComplete(true);
+        setIsQuizzing(false);
+      }
+    });
+  };
+
   const handleAnimate = () => {
     if (!writerRef.current || isPlaying) return;
+    if (isQuizzing) {
+      try {
+        writerRef.current.cancelQuiz();
+      } catch (e) {}
+      setIsQuizzing(false);
+    }
+    setIsQuizComplete(false);
     setIsPlaying(true);
+    writerRef.current.showCharacter();
     writerRef.current.animateCharacter({
       onComplete: () => {
         setIsPlaying(false);
@@ -128,8 +192,23 @@ export const StrokeOrderModal: React.FC<StrokeOrderModalProps> = ({
   const handleReset = () => {
     if (!writerRef.current) return;
     setIsPlaying(false);
+    setIsQuizzing(false);
+    setIsQuizComplete(false);
+    try {
+      writerRef.current.cancelQuiz();
+    } catch (e) {}
     writerRef.current.showCharacter();
     setCurrentStep(strokeCount);
+  };
+
+  const toggleOutlineHint = () => {
+    const nextVal = !showOutlineHint;
+    setShowOutlineHint(nextVal);
+    if (writerRef.current) {
+      try {
+        writerRef.current.update({ showOutline: nextVal });
+      } catch (e) {}
+    }
   };
 
   return (
@@ -205,6 +284,66 @@ export const StrokeOrderModal: React.FC<StrokeOrderModalProps> = ({
         {/* Body */}
         <div style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
+          {/* Compound Word Character Selector Tabs */}
+          {hanziChars.length > 1 && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px',
+              padding: '12px 16px',
+              backgroundColor: 'var(--bg-base)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-sm)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Compound Word:
+                </span>
+                <span style={{ fontFamily: 'var(--font-serif-zh)', fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {character}
+                </span>
+                {pinyin && (
+                  <span style={{ fontSize: '13px', color: 'var(--accent-seal)', fontFamily: 'var(--font-mono)' }}>
+                    ({pinyin})
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Select character:</span>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {hanziChars.map((c, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => {
+                        setActiveChar(c);
+                        setIsPlaying(false);
+                        setIsQuizzing(false);
+                        setIsQuizComplete(false);
+                      }}
+                      className={`btn ${activeChar === c ? 'btn-bamboo' : 'btn-secondary'}`}
+                      style={{
+                        fontFamily: 'var(--font-serif-zh)',
+                        fontSize: '16px',
+                        fontWeight: 600,
+                        padding: '4px 14px',
+                        borderRadius: 'var(--radius-sm)',
+                        minWidth: '40px',
+                        boxShadow: activeChar === c ? '0 0 0 2px var(--accent-bamboo)' : 'none'
+                      }}
+                      title={`Inspect stroke order for ${c} (${i + 1}/${hanziChars.length})`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Main Stage Grid */}
           <div style={{
             display: 'grid',
@@ -248,6 +387,29 @@ export const StrokeOrderModal: React.FC<StrokeOrderModalProps> = ({
 
               {/* HanziWriter Canvas mount point */}
               <div ref={canvasRef} style={{ width: '260px', height: '260px', position: 'relative', zIndex: 2 }} />
+
+              {/* Drawing Mode Overlay Badge */}
+              {isQuizzing && (
+                <div style={{
+                  position: 'absolute',
+                  top: '8px',
+                  right: '8px',
+                  zIndex: 10,
+                  padding: '3px 8px',
+                  borderRadius: 'var(--radius-pill)',
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  backgroundColor: 'var(--accent-bamboo)',
+                  color: '#FFFFFF',
+                  pointerEvents: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                }}>
+                  <Edit3 size={10} /> Draw Mode
+                </div>
+              )}
             </div>
 
             {/* Character Meta & Playback Controls */}
@@ -257,14 +419,19 @@ export const StrokeOrderModal: React.FC<StrokeOrderModalProps> = ({
                   <span style={{ fontSize: '32px', fontFamily: 'var(--font-serif-zh)', fontWeight: 700, color: 'var(--text-primary)' }}>
                     {activeChar}
                   </span>
-                  {pinyin && (
+                  {activePinyin && (
                     <span style={{ fontSize: '20px', fontFamily: 'var(--font-mono)', color: 'var(--accent-seal)' }}>
-                      {pinyin}
+                      {activePinyin}
                     </span>
                   )}
                   {strokeCount > 0 && (
                     <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                       ({strokeCount} 画 · strokes)
+                    </span>
+                  )}
+                  {hanziChars.length > 1 && (
+                    <span style={{ fontSize: '11px', color: 'var(--accent-bamboo)', fontWeight: 500 }}>
+                      [Char {hanziChars.indexOf(activeChar) + 1} of {hanziChars.length}]
                     </span>
                   )}
                 </div>
@@ -275,15 +442,23 @@ export const StrokeOrderModal: React.FC<StrokeOrderModalProps> = ({
                 )}
               </div>
 
-              {/* Playback Button Group */}
+              {/* Playback & Drawing Button Group */}
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button
                   onClick={handleAnimate}
                   disabled={isPlaying}
-                  className="btn btn-primary"
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '13px' }}
+                  className="btn btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', fontSize: '13px' }}
                 >
-                  <Play size={14} /> {isPlaying ? 'Drawing...' : 'Animate Stroke Order'}
+                  <Play size={14} /> {isPlaying ? 'Drawing...' : 'Animate'}
+                </button>
+                <button
+                  onClick={handleStartQuiz}
+                  className={`btn ${isQuizzing ? 'btn-bamboo' : 'btn-primary'}`}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '13px' }}
+                  title="Interactive handwriting canvas: draw strokes with your mouse or stylus"
+                >
+                  <Edit3 size={14} /> {isQuizzing ? 'Drawing Active...' : 'Practice Drawing'}
                 </button>
                 <button
                   onClick={handleReset}
@@ -293,6 +468,63 @@ export const StrokeOrderModal: React.FC<StrokeOrderModalProps> = ({
                   <RotateCcw size={13} /> Reset
                 </button>
               </div>
+
+              {/* Quizzing / Drawing Guidance & Controls */}
+              {isQuizzing && (
+                <div style={{
+                  padding: '10px 12px',
+                  backgroundColor: 'rgba(76, 107, 83, 0.12)',
+                  border: '1px solid var(--accent-bamboo)',
+                  borderRadius: 'var(--radius-sm)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                  fontSize: '12px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--accent-bamboo)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Edit3 size={13} /> Draw strokes on the grid
+                    </span>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      <input
+                        type="checkbox"
+                        checked={showOutlineHint}
+                        onChange={toggleOutlineHint}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      Show Outline Guide
+                    </label>
+                  </div>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
+                    Click & drag following canonical stroke order. Hints appear automatically after 2 misses.
+                  </span>
+                </div>
+              )}
+
+              {/* Quiz Completion Celebration Banner */}
+              {isQuizComplete && (
+                <div style={{
+                  padding: '10px 12px',
+                  backgroundColor: 'rgba(88, 204, 2, 0.12)',
+                  border: '1px solid rgba(88, 204, 2, 0.4)',
+                  borderRadius: 'var(--radius-sm)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '10px'
+                }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent-bamboo)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <CheckCircle2 size={15} /> Well done! Stroke order completed!
+                  </span>
+                  <button
+                    onClick={handleStartQuiz}
+                    className="btn btn-bamboo"
+                    style={{ fontSize: '11px', padding: '3px 8px' }}
+                  >
+                    Draw Again
+                  </button>
+                </div>
+              )}
 
               {/* Character Input Quick Switcher */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>

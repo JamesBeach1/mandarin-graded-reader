@@ -13,7 +13,8 @@ import {
   getDeprecatedModels, 
   markModelAsDeprecated, 
   extractSuggestedModelFromError, 
-  isModelDeprecatedOrUnavailableError 
+  isModelDeprecatedOrUnavailableError,
+  isTransientCapacityError
 } from './gemini';
 import { STORAGE_KEYS } from './storage';
 
@@ -244,6 +245,9 @@ RULES:
           }
         } catch (err: any) {
           console.warn(`Lesson routine generation failed with ${modelId}, trying fallback:`, err);
+          if (isTransientCapacityError(err)) {
+            throw err;
+          }
           if (isModelDeprecatedOrUnavailableError(err)) {
             markModelAsDeprecated(modelId);
             const suggested = extractSuggestedModelFromError(err?.message || String(err));

@@ -12,7 +12,8 @@ import {
   getDeprecatedModels, 
   markModelAsDeprecated, 
   extractSuggestedModelFromError, 
-  isModelDeprecatedOrUnavailableError 
+  isModelDeprecatedOrUnavailableError,
+  isTransientCapacityError
 } from './gemini';
 import { STORAGE_KEYS } from './storage';
 
@@ -196,6 +197,9 @@ CRITICAL CREATIVE & NARRATIVE MANDATES:
           } catch (err: any) {
             console.warn(`Syllabus generation attempt with ${modelId} failed:`, err);
             lastErr = err;
+            if (isTransientCapacityError(err)) {
+              throw err;
+            }
             if (isModelDeprecatedOrUnavailableError(err)) {
               markModelAsDeprecated(modelId);
               const suggested = extractSuggestedModelFromError(err?.message || String(err));

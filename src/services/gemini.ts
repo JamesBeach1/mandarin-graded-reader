@@ -10,6 +10,7 @@ export interface ParsedGeminiModel {
   badge: string;
   description: string;
   isRecommended?: boolean;
+  isExperimental?: boolean;
 }
 
 // Backwards-compatible alias for existing imports
@@ -39,11 +40,20 @@ const TIER_ORDER: Record<ParsedGeminiModel['tier'], number> = {
  * Extracts semantic version, tier, and generates dynamic labels and badges.
  */
 export function parseModelMetadata(rawId: string, displayName?: string, description?: string): ParsedGeminiModel {
-  const cleanId = (rawId || '').replace(/^models\//, '').trim();
+  const cleanId = (rawId || '').replace(/^models\//, '').trim().toLowerCase();
 
   // Extract semantic version (e.g. "gemini-3.5-flash" -> 3.5, "gemini-2.5-pro" -> 2.5)
   const versionMatch = cleanId.match(/gemini-(\d+(?:\.\d+)?)/i);
   const version = versionMatch ? parseFloat(versionMatch[1]) : 1.0;
+
+  // Detect experimental, preview, or thinking testbed models (e.g. argon, preview, exp)
+  const isExperimental = (
+    cleanId.includes('-exp') ||
+    cleanId.includes('preview') ||
+    cleanId.includes('argon') ||
+    cleanId.includes('thinking') ||
+    cleanId.includes('experimental')
+  );
 
   // Extract model tier
   let tier: ParsedGeminiModel['tier'] = 'standard';
@@ -59,14 +69,16 @@ export function parseModelMetadata(rawId: string, displayName?: string, descript
 
   // Format clean human-friendly name
   let name = displayName || '';
-  if (!name || name === cleanId) {
+  if (!name || name.toLowerCase() === cleanId) {
     const tierName = tier === 'flash-lite' ? 'Flash Lite' : tier.charAt(0).toUpperCase() + tier.slice(1);
-    name = `Gemini ${version.toFixed(1)} ${tierName}`;
+    name = `Gemini ${version.toFixed(1)} ${tierName}${isExperimental ? ' (Preview)' : ''}`;
   }
 
   // Generate dynamic generation badge
   let badge = `Gen ${version.toFixed(1)}`;
-  if (tier === 'flash-lite') {
+  if (isExperimental) {
+    badge = `Preview (v${version.toFixed(1)})`;
+  } else if (tier === 'flash-lite') {
     badge = `Ultra Fast (v${version.toFixed(1)})`;
   } else if (tier === 'flash') {
     badge = version >= 3.0 ? `Frontier Flash (v${version.toFixed(1)})` : `Workhorse (v${version.toFixed(1)})`;
@@ -80,16 +92,23 @@ export function parseModelMetadata(rawId: string, displayName?: string, descript
     version,
     tier,
     badge,
+    isExperimental,
     description: description || `Gemini ${version.toFixed(1)} ${tier} generative language model.`
   };
 }
 
 /**
- * Sorts Gemini models strictly in descending generational order (v3.8 > v3.5 > v3.1 > v2.5 > v1.5),
- * with Flash preferred over Flash Lite over Pro as tie-breakers.
+ * Sorts Gemini models:
+ * 1. Stable production models ALWAYS come before experimental/preview models!
+ * 2. Descending generational order (v3.8 > v3.5 > v3.1 > v2.5 > v1.5)
+ * 3. Flash preferred over Flash Lite over Pro as tie-breakers.
  */
 export function sortGeminiModels(models: ParsedGeminiModel[]): ParsedGeminiModel[] {
   return [...models].sort((a, b) => {
+    // 0. Stable production models precede experimental previews
+    if (Boolean(a.isExperimental) !== Boolean(b.isExperimental)) {
+      return a.isExperimental ? 1 : -1;
+    }
     // 1. Descending Generation / Version
     if (b.version !== a.version) {
       return b.version - a.version;
@@ -155,10 +174,38 @@ export function extractSuggestedModelFromError(errorMessage: string): string | n
 }
 
 /**
- * Detects if an error is due to a 404 / deprecation / discontinuation status.
+ * Detects if an error is a temporary capacity spike or rate limit (503 / 429).
+ * When true, we MUST FAIL FAST with a clear explanation instead of spamming other models!
+ */
+export function isTransientCapacityError(error: any): boolean {
+  if (!error) return false;
+  const status = error.status || error.code || error?.error?.code;
+  const msg = (error.message || error?.error?.message || '').toLowerCase();
+
+  return (
+    status === 503 ||
+    status === 429 ||
+    status === 'UNAVAILABLE' ||
+    status === 'RESOURCE_EXHAUSTED' ||
+    msg.includes('503') ||
+    msg.includes('429') ||
+    msg.includes('high demand') ||
+    msg.includes('temporary') ||
+    msg.includes('try again later') ||
+    msg.includes('rate limit') ||
+    msg.includes('resource exhausted') ||
+    msg.includes('quota')
+  );
+}
+
+/**
+ * Detects if an error is due to a permanent 404 / deprecation / discontinuation status.
+ * Transient spikes (503, 429) are strictly excluded.
  */
 export function isModelDeprecatedOrUnavailableError(error: any): boolean {
   if (!error) return false;
+  if (isTransientCapacityError(error)) return false;
+
   const status = error.status || error.code || error?.error?.code;
   const msg = (error.message || error?.error?.message || '').toLowerCase();
 
@@ -277,8 +324,8 @@ export async function fetchAvailableGeminiModels(apiKey: string): Promise<Parsed
 }
 
 /**
- * Generate raw text using Gemini with dynamic discovery, automatic 404/deprecation healing,
- * and smart Google recommendation adoption.
+ * Generate raw text using Gemini with fast-fail on 503/429 (no spamming)
+ * and single-step healing on permanent 404 deprecations.
  */
 export async function generateGeminiText(
   apiKey: string,
@@ -287,54 +334,66 @@ export async function generateGeminiText(
 ): Promise<string> {
   const genAI = new GoogleGenerativeAI(apiKey);
   const activePreferred = preferredModel || getPreferredGeminiModel();
-  const availableModels = getDiscoveredOrBaselineModels().map(m => m.id);
   const deprecated = getDeprecatedModels();
 
-  // Build candidate queue, eliminating duplicates & known deprecated models
-  const candidateQueue: string[] = [
-    activePreferred,
-    ...availableModels
-  ].filter((id, idx, arr) => Boolean(id) && !deprecated.has(id.toLowerCase()) && arr.indexOf(id) === idx);
+  // If user passed a deprecated model, fallback to best healthy model
+  const targetModel = deprecated.has(activePreferred.toLowerCase())
+    ? getPreferredGeminiModel()
+    : activePreferred;
 
-  let lastError: any = null;
+  try {
+    const model = genAI.getGenerativeModel({ model: targetModel });
+    const request = await model.generateContent(prompt);
+    const text = request.response.text();
+    if (text && text.trim().length > 0) {
+      return text;
+    }
+    throw new Error('Gemini returned an empty response.');
+  } catch (err: any) {
+    const errMsg = err?.message || String(err);
+    console.warn(`[Gemini] Request with model "${targetModel}" failed:`, errMsg);
 
-  for (let i = 0; i < candidateQueue.length; i++) {
-    const modelId = candidateQueue[i];
-    try {
-      const model = genAI.getGenerativeModel({ model: modelId });
-      const request = await model.generateContent(prompt);
-      const text = request.response.text();
-      if (text && text.trim().length > 0) {
-        // If we healed to a different model than what was originally stored, persist it!
-        if (modelId !== StorageService.getItem(STORAGE_KEYS.GEMINI_MODEL)) {
-          console.info(`[Gemini Self-Healing] Successfully healed and updated preferred model to "${modelId}".`);
-          StorageService.setItem(STORAGE_KEYS.GEMINI_MODEL, modelId);
-        }
-        return text;
+    // 1. FAST FAIL on temporary capacity spikes & rate limits (503 / 429).
+    // NEVER cascade or machine-gun other models, which triggers key lockdown!
+    if (isTransientCapacityError(err)) {
+      if (errMsg.includes('high demand') || err?.status === 503 || err?.code === 503) {
+        throw new Error(`Google Gemini is currently experiencing high demand (503). Please wait a moment and try again.`);
       }
-    } catch (err: any) {
-      lastError = err;
-      const errMsg = err?.message || String(err);
-      console.warn(`[Gemini] Attempt with model "${modelId}" failed:`, errMsg);
+      throw new Error(`Gemini API rate limit reached (429). Please wait a moment before trying again.`);
+    }
 
-      if (isModelDeprecatedOrUnavailableError(err)) {
-        markModelAsDeprecated(modelId);
+    // 2. Only on true 404 deprecation: attempt Google's recommended replacement model ONCE
+    if (isModelDeprecatedOrUnavailableError(err)) {
+      markModelAsDeprecated(targetModel);
+      const suggested = extractSuggestedModelFromError(errMsg) || getPreferredGeminiModel();
 
-        // Check if Google provided a replacement suggestion in the error message
-        const suggested = extractSuggestedModelFromError(errMsg);
-        if (suggested && !candidateQueue.includes(suggested) && !deprecated.has(suggested.toLowerCase())) {
-          console.info(`[Gemini Self-Healing] Google suggested replacement "${suggested}". Inserting into front of queue.`);
-          candidateQueue.splice(i + 1, 0, suggested);
+      if (suggested && suggested.toLowerCase() !== targetModel.toLowerCase() && !deprecated.has(suggested.toLowerCase())) {
+        console.info(`[Gemini Fast-Healing] Model "${targetModel}" is discontinued (404). Falling back once to "${suggested}".`);
+        StorageService.setItem(STORAGE_KEYS.GEMINI_MODEL, suggested);
+
+        try {
+          const fallbackModel = genAI.getGenerativeModel({ model: suggested });
+          const retryRequest = await fallbackModel.generateContent(prompt);
+          const retryText = retryRequest.response.text();
+          if (retryText && retryText.trim().length > 0) {
+            return retryText;
+          }
+        } catch (retryErr: any) {
+          if (isTransientCapacityError(retryErr)) {
+            throw new Error(`Google Gemini is currently experiencing high demand (503). Please wait a moment and try again.`);
+          }
+          throw retryErr;
         }
       }
     }
-  }
 
-  throw lastError || new Error('Failed to generate content with Gemini across all active models.');
+    throw err;
+  }
 }
 
 /**
- * Generate structured lesson using Gemini with self-healing fallback across active models.
+ * Generate structured lesson using Gemini with fast-fail on 503/429
+ * and single-step healing on permanent 404 deprecations.
  */
 export async function generateLesson(
   topic: string, 
@@ -344,13 +403,11 @@ export async function generateLesson(
 ): Promise<Lesson> {
   const genAI = new GoogleGenerativeAI(apiKey);
   const activePreferred = preferredModel || getPreferredGeminiModel();
-  const availableModels = getDiscoveredOrBaselineModels().map(m => m.id);
   const deprecated = getDeprecatedModels();
 
-  const candidateQueue: string[] = [
-    activePreferred,
-    ...availableModels
-  ].filter((id, idx, arr) => Boolean(id) && !deprecated.has(id.toLowerCase()) && arr.indexOf(id) === idx);
+  const targetModel = deprecated.has(activePreferred.toLowerCase())
+    ? getPreferredGeminiModel()
+    : activePreferred;
 
   const prompt = `You are a professional Chinese language tutor. Generate a structured Chinese lesson in JSON format about the topic "${topic}" matching HSK Level ${hskLevel}.
   
@@ -416,45 +473,56 @@ export async function generateLesson(
   Ensure pinyin contains proper tone marks.
   Do not wrap the JSON output in markdown formatting blocks. Return only raw valid JSON.`;
 
-  let lastError: any = null;
+  const executeCall = async (modelId: string): Promise<Lesson> => {
+    const model = genAI.getGenerativeModel({ model: modelId });
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text().trim();
 
-  for (let i = 0; i < candidateQueue.length; i++) {
-    const modelId = candidateQueue[i];
-    try {
-      const model = genAI.getGenerativeModel({ model: modelId });
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text().trim();
+    let cleanText = responseText;
+    if (cleanText.startsWith('```')) {
+      cleanText = cleanText.replace(/^```json\s*/, '').replace(/```\s*$/, '');
+    }
+    const parsed = JSON.parse(cleanText) as Lesson;
+    if (!parsed.title || !parsed.exercises || !Array.isArray(parsed.exercises)) {
+      throw new Error("Invalid lesson JSON structure");
+    }
+    return parsed;
+  };
 
-      let cleanText = responseText;
-      if (cleanText.startsWith('```')) {
-        cleanText = cleanText.replace(/^```json\s*/, '').replace(/```\s*$/, '');
+  try {
+    return await executeCall(targetModel);
+  } catch (err: any) {
+    const errMsg = err?.message || String(err);
+    console.warn(`[Gemini] Lesson generation with model "${targetModel}" failed:`, errMsg);
+
+    // 1. FAST FAIL on temporary capacity spikes & rate limits (503 / 429)
+    if (isTransientCapacityError(err)) {
+      if (errMsg.includes('high demand') || err?.status === 503 || err?.code === 503) {
+        throw new Error(`Google Gemini is currently experiencing high demand (503). Please wait a moment and try again.`);
       }
-      const parsed = JSON.parse(cleanText) as Lesson;
-      if (!parsed.title || !parsed.exercises || !Array.isArray(parsed.exercises)) {
-        throw new Error("Invalid lesson JSON structure");
-      }
+      throw new Error(`Gemini API rate limit reached (429). Please wait a moment before trying again.`);
+    }
 
-      if (modelId !== StorageService.getItem(STORAGE_KEYS.GEMINI_MODEL)) {
-        console.info(`[Gemini Self-Healing] Successfully healed and updated preferred model to "${modelId}".`);
-        StorageService.setItem(STORAGE_KEYS.GEMINI_MODEL, modelId);
-      }
-      return parsed;
-    } catch (err: any) {
-      lastError = err;
-      const errMsg = err?.message || String(err);
-      console.warn(`[Gemini] Lesson generation with model "${modelId}" failed:`, errMsg);
+    // 2. Only on true 404 deprecation: attempt Google's recommended replacement model ONCE
+    if (isModelDeprecatedOrUnavailableError(err)) {
+      markModelAsDeprecated(targetModel);
+      const suggested = extractSuggestedModelFromError(errMsg) || getPreferredGeminiModel();
 
-      if (isModelDeprecatedOrUnavailableError(err)) {
-        markModelAsDeprecated(modelId);
+      if (suggested && suggested.toLowerCase() !== targetModel.toLowerCase() && !deprecated.has(suggested.toLowerCase())) {
+        console.info(`[Gemini Fast-Healing] Model "${targetModel}" is discontinued (404). Falling back once to "${suggested}".`);
+        StorageService.setItem(STORAGE_KEYS.GEMINI_MODEL, suggested);
 
-        const suggested = extractSuggestedModelFromError(errMsg);
-        if (suggested && !candidateQueue.includes(suggested) && !deprecated.has(suggested.toLowerCase())) {
-          console.info(`[Gemini Self-Healing] Google suggested replacement "${suggested}". Inserting into front of queue.`);
-          candidateQueue.splice(i + 1, 0, suggested);
+        try {
+          return await executeCall(suggested);
+        } catch (retryErr: any) {
+          if (isTransientCapacityError(retryErr)) {
+            throw new Error(`Google Gemini is currently experiencing high demand (503). Please wait a moment and try again.`);
+          }
+          throw retryErr;
         }
       }
     }
-  }
 
-  throw lastError || new Error("Failed to generate structured lesson with Gemini across all active models.");
+    throw err;
+  }
 }

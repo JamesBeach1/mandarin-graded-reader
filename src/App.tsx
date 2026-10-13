@@ -845,6 +845,15 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
             librarySearchQuery={librarySearchQuery}
             setLibrarySearchQuery={setLibrarySearchQuery}
             onImportStory={handleImportStoryPackage}
+            onOpenImportWorkspace={() => setActiveWorkspace('import')}
+            onPasteTextIntoReader={(title, rawText) => {
+              const tokens = tokenizeStory(rawText, hanziData, vocabData, overridesMap);
+              setStoryTitle(title);
+              setGeneratedStory(tokens);
+              setActiveWorkspace('reading');
+              recordCharactersRead(rawText.length);
+              ToastStore.success(`Opened "${title}" in Graded Reader!`);
+            }}
           />
         )}
 
