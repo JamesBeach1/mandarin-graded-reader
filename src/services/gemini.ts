@@ -161,13 +161,13 @@ export function extractSuggestedModelFromError(errorMessage: string): string | n
   // Pattern: "use models/gemini-..." or "use gemini-..."
   const useMatch = errorMessage.match(/use\s+(?:models\/)?(gemini-[\w.-]+)/i);
   if (useMatch && useMatch[1]) {
-    return useMatch[1].replace(/^models\//, '').trim();
+    return useMatch[1].replace(/^models\//, '').replace(/[.,;:\s]+$/, '').trim();
   }
 
   // Fallback pattern: second occurrence of "models/(gemini-...)"
   const allMatches = Array.from(errorMessage.matchAll(/models\/(gemini-[\w.-]+)/gi));
   if (allMatches.length > 1 && allMatches[1][1]) {
-    return allMatches[1][1].replace(/^models\//, '').trim();
+    return allMatches[1][1].replace(/^models\//, '').replace(/[.,;:\s]+$/, '').trim();
   }
 
   return null;

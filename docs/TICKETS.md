@@ -3,7 +3,7 @@
 **Document Status:** Canonical Single Source of Truth for Issues & Feature Specifications  
 **Last Updated:** 2026-09-23  
 **Repository:** `mandarin-graded-reader`  
-**Total Managed Tickets:** 63 (54 Completed, 9 Backlog)
+**Total Managed Tickets:** 69 (54 Completed, 15 Backlog)
 
 ---
 
@@ -12,9 +12,9 @@
 ### Status Summary
 | Status | Indicator | Count | Percentage | Definition |
 |---|:---:|:---:|:---:|---|
-| **Completed** | 🟢 | 54 | 85.7% | Verified and shipped in active codebase. |
+| **Completed** | 🟢 | 54 | 78.3% | Verified and shipped in active codebase. |
 | **In Progress** | 🟡 | 0 | 0.0% | Actively being engineered in the current sprint. |
-| **Backlog** | ⚪ | 9 | 14.3% | Fully specified; pending prioritization and grooming. |
+| **Backlog** | ⚪ | 15 | 21.7% | Fully specified; pending prioritization and grooming. |
 | **Blocked / Deferred** | 🔴 | 0 | 0.0% | External dependencies or architectural blockers. |
 
 ### Domain Breakdown
@@ -26,6 +26,7 @@
 | **SRS** | Spaced Repetition (SRS) & Vocabulary | 10 | 9 | 1 |
 | **GTU** | Gamification, Tracking & UX | 10 | 7 | 3 |
 | **AIM** | Advanced AI & Input Methods | 10 | 9 | 1 |
+| **NONLLM**| Offline-First & Zero-LLM Architecture | 6 | 0 | 6 |
 
 ---
 
@@ -95,6 +96,12 @@
 | `AIM-008` | AIM | Subtitles Export (.srt / .vtt) | Medium | 2 | 🟢 Completed | Export synchronized subtitle files (.srt/.vtt) with Chinese, Pinyin, or bilingual lines. |
 | `AIM-009` | AIM | Offline Audio Pre-caching (Neural Audio Packs) | Medium | 8 | 🟢 Completed | Download and cache studio neural audio for entire stories for flight use. |
 | `AIM-010` | AIM | Integrated Stroke Order Numbered Typography | Medium | 5 | 🟢 Completed | Render numbered stroke sequences directly within character fonts. |
+| `NONLLM-001` | NONLLM | Bundled Masterpiece Anthology (50+ Offline Stories) | High | 8 | ⚪ Backlog | Seed IndexedDB with curated HSK 1–6 stories, idiom fables & line translations. |
+| `NONLLM-002` | NONLLM | Phonosemantic Character Network (形声字 Component Tree) | High | 5 | ⚪ Backlog | Offline radical + phonetic sound family graph (e.g. 青 -> 清, 晴, 情, 请, 精). |
+| `NONLLM-003` | NONLLM | Pareto Reading Frontier (High-Yield Vocab Analyzer) | High | 5 | ⚪ Backlog | Algorithmic calculation of top 5 characters giving highest comprehension jump. |
+| `NONLLM-004` | NONLLM | Spoken Tone Sandhi Visualizer (3-3, 一/不 Rules) | Medium | 3 | ⚪ Backlog | Contextual phonetic diacritic indicators for spoken sandhi vs citation tones. |
+| `NONLLM-005` | NONLLM | Algorithmic Cloze & Jigsaw Quiz Generator | High | 5 | ⚪ Backlog | Generate fill-in-the-blank & auditory jigsaw drills from any story without LLM. |
+| `NONLLM-006` | NONLLM | Consolidated Ink Scroll Inspector Drawer (墨卷检视) | High | 5 | ⚪ Backlog | Consolidate stroke, etymology & homophone modals into single slide-over drawer. |
 
 ---
 
@@ -657,3 +664,70 @@
 * **Acceptance Criteria:**
   1. Displays numbered stroke paths on traditional calligraphic rice-grid (米字格) canvas with animated playback.
   2. Step-by-step stroke breakdown, stroke count, and 7 standard stroke order rules (笔顺基本法则) accessible directly from dictionary tooltips and reading theater.
+
+---
+
+### 4. Backlog: Offline-First & Zero-LLM Architecture (`NONLLM`)
+
+#### `NONLLM-001`: Bundled Masterpiece Anthology (50+ Offline Stories)
+* **Status:** ⚪ `Backlog` | **Priority:** High | **Points:** 8
+* **Requirements:**
+  * Pre-seed IndexedDB on initial application launch with a rich catalog of 50+ curated, graded Chinese stories across HSK 1 through HSK 6.
+  * Categories include: Daily Situational Dialogues (HSK 1-2), Adapted World Fables (HSK 2-3), Classical Idiom Legends (成语故事 HSK 3-4), Historical Biographies (HSK 4-5), and Contemporary Cultural Essays (HSK 5-6).
+* **Acceptance Criteria:**
+  1. Users with no internet connection and no API key immediately have access to a rich reading library upon first load.
+  2. Each bundled story includes verified sentence-level English translations, Pinyin ruby annotations, and audio read-aloud support.
+  3. Fully searchable via the offline inverted-index search engine (`SemanticSearchEngine`).
+
+#### `NONLLM-002`: Phonosemantic Character Network (形声字 Component Tree)
+* **Status:** ⚪ `Backlog` | **Priority:** High | **Points:** 5
+* **Requirements:**
+  * Algorithmic character anatomy engine breaking down logograms into their semantic radical (meaning indicator) and phonetic stem (sound carrier).
+  * Generates an interactive "Sound Family Tree" (e.g. tapping `清` displays `青` as sound component and related siblings `晴`, `情`, `请`, `精`).
+* **Acceptance Criteria:**
+  1. 100% offline relational lookup against common 2,500 Hanzi with zero LLM latency.
+  2. Interactive visualization showing radical meaning vs phonetic sound similarity.
+  3. Integrated directly into the character inspection inspector.
+
+#### `NONLLM-003`: Pareto Reading Frontier (High-Yield Vocab Analyzer)
+* **Status:** ⚪ `Backlog` | **Priority:** High | **Points:** 5
+* **Requirements:**
+  * Algorithmic vocabulary optimizer for imported texts, EPUBs, and PDFs.
+  * Calculates character occurrence frequency against the user's known HSK level to identify the exact 5–10 highest-yield target words.
+* **Acceptance Criteria:**
+  1. Evaluates in sub-50ms using in-memory tokenization and frequency counting.
+  2. Surfaces a non-intrusive banner in reader: *"Learning these 5 characters unlocks +8.5% comprehension for this text."*
+  3. 1-click button to preview target words, hear pronunciation, and add to SRS review queue before reading.
+
+#### `NONLLM-004`: Spoken Tone Sandhi Visualizer (3-3, 一/不 Rules)
+* **Status:** ⚪ `Backlog` | **Priority:** Medium | **Points:** 3
+* **Requirements:**
+  * Real-time rule-based tone sandhi scanner detecting:
+    1. 3rd-3rd tone combinations (e.g. `nǐ hǎo` ➔ spoken `ní hǎo`).
+    2. "一" (yī) phonetic shifts (`yí gè` before 4th tone; `yì tiān` before 1st/2nd/3rd tone).
+    3. "不" (bù) phonetic shifts (`bú shì` before 4th tone).
+* **Acceptance Criteria:**
+  1. Reconciles printed dictionary Pinyin with natural human spoken audio so beginners are never confused.
+  2. Contextual visual indicator or subtle diacritic badge indicating the spoken tone shift.
+  3. Configurable toggle in Reading Display preferences.
+
+#### `NONLLM-005`: Algorithmic Cloze & Jigsaw Quiz Generator
+* **Status:** ⚪ `Backlog` | **Priority:** High | **Points:** 5
+* **Requirements:**
+  * Zero-LLM dynamic exercise generator capable of turning *any* story in the user's library into interactive drills.
+  * Synthesizes Smart Cloze (fill-in-the-blank with intelligent same-HSK/same-radical distractors) and Auditory Sentence Jigsaw drills.
+* **Acceptance Criteria:**
+  1. Zero LLM reliance: uses `Intl.Segmenter` and client-side `hanziDB.csv` to pick plausible distractors.
+  2. Instant generation without network latency.
+  3. Results feed directly into the user's local SM-2 spaced repetition queue.
+
+#### `NONLLM-006`: Consolidated Ink Scroll Inspector Drawer (墨卷检视)
+* **Status:** ⚪ `Backlog` | **Priority:** High | **Points:** 5
+* **Requirements:**
+  * Consolidate fragmented modals (`StrokeOrderModal`, `ConfusableModal`, `EtymologyModal`, `CharacterTooltip`) into a single, elegant slide-over drawer on the right side of the screen.
+  * Implements Progressive Disclosure: users are not interrupted by modal popups; the drawer slides open gently while the story text remains fully visible.
+* **Acceptance Criteria:**
+  1. Single unified inspection drawer with 4 clean tabs: 释义 (Lexicon), 剖析 (Anatomy), 笔顺 (Calligraphy/Stroke practice), and 语境 (Story context).
+  2. Smooth CSS transform animation with keyboard shortcut (Esc to close).
+  3. Reduces visual noise and eliminates multi-modal cognitive fatigue.
+

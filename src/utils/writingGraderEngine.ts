@@ -47,8 +47,8 @@ const HEURISTIC_RULES: Array<{
 }> = [
   // 1. 的 vs 得 vs 地 (Structural Particles)
   {
-    // Verb + 的 + Adverb/Adj (e.g. 跑的快 -> 跑得快, 说的很好 -> 说得很好)
-    regex: /([\u4E00-\u9FFF]{1,2})的(快|慢|好|高|多|少|远|漂亮|清楚|对|错|早|晚)/g,
+    // Verb + 的 + Adverb/Adj (e.g. 跑的快 -> 跑得快, 说的很好 -> 说得很好, 跑的很快 -> 跑得很快)
+    regex: /([\u4E00-\u9FFF]{1,2})的(很|非常|十分|特别|真|挺)?(快|慢|好|高|多|少|远|漂亮|清楚|对|错|早|晚)/g,
     type: 'particle',
     title: '结构助词 “得” 与 “的” 混淆',
     suggest: (m) => m.replace('的', '得'),
