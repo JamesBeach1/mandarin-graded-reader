@@ -4,8 +4,9 @@ import {
   Volume2, Pause, Play, Square, BookOpen, Eye, EyeOff, Save, Printer, 
   TrendingDown, TrendingUp, Maximize2, Minimize2, Languages, Sparkles,
   ChevronDown, MoreHorizontal, Palette, Zap, Subtitles, BarChart3, HelpCircle, RotateCcw, Share2, Settings,
-  Compass, Check
+  Compass, Check, GitCommit, ChevronLeft, ChevronRight
 } from 'lucide-react';
+import { SentenceSyntaxModal } from './SentenceSyntaxModal';
 import { AzureSpeechService, type TtsEngine, type VoiceOption, type AudioPlaybackHandle } from '../services/azureSpeech';
 import { findGrammarPatterns, type GrammarPatternMatch } from '../utils/grammarHighlighter';
 import { checkPolyphone } from '../utils/homophoneDetector';
@@ -30,6 +31,12 @@ import { StoryClozeModal } from './StoryClozeModal';
 import { StorageService, STORAGE_KEYS } from '../services/storage';
 import { IslandStore } from '../services/islandStore';
 import type { IslandSentence } from '../types/Island';
+import { ParetoReadingFrontierEngine, type ParetoFrontierReport } from '../utils/paretoReadingFrontier';
+import { analyzeToneSandhi, type ToneSandhiResult } from '../utils/toneSandhi';
+import { AlgorithmicQuizGenerator, type AlgorithmicClozeQuestion } from '../utils/algorithmicQuizGenerator';
+import { AlgorithmicQuizModal } from './AlgorithmicQuizModal';
+
+
 
 interface ReadingTheaterProps {
   storyTitle: string;
@@ -85,6 +92,8 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
 
   // Grammar highlighting toggle (defaults to false for clean reading experience)
   const [highlightGrammar, setHighlightGrammar] = useState(false);
+  const [showDisplayMenu, setShowDisplayMenu] = useState(false);
+  const displayMenuRef = useRef<HTMLDivElement | null>(null);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const [showAudioMenu, setShowAudioMenu] = useState(false);
@@ -147,11 +156,61 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
 
   // AIM-009: Offline Audio Pre-caching Modal State
   const [showPrecacheModal, setShowPrecacheModal] = useState(false);
+  // TRC-006: Sentence Syntax Tree Visualizer State
+  const [syntaxModalOpen, setSyntaxModalOpen] = useState(false);
+  const [syntaxSentence, setSyntaxSentence] = useState('');
+
+  // Performance & Book Reading: Virtual Windowed Chapter/Pagination State
+  const PARAS_PER_BOOK_PAGE = 15;
+  const [currentBookPage, setCurrentBookPage] = useState<number>(0);
 
   // AIM-004: Real-time Vocabulary Difficulty Scaler State
   const [realTimeHsk, setRealTimeHsk] = useState<number>(() => parseInt(hskLevel, 10) || 1);
   const [substitutions, setSubstitutions] = useState<SubstitutionRecord[]>([]);
   const [scaledTokens, setScaledTokens] = useState<HanziItem[] | null>(null);
+
+  // NONLLM-004: Tone Sandhi spoken toggle
+  const [toneSandhiEnabled, setToneSandhiEnabled] = useState<boolean>(() =>
+    StorageService.getItem('moyun_tone_sandhi_enabled') === 'true'
+  );
+
+  // NONLLM-005: Algorithmic Quiz Studio Modal State
+  const [showAlgorithmicQuizModal, setShowAlgorithmicQuizModal] = useState(false);
+
+  // NONLLM-003: Pareto Reading Frontier Calculation
+  const paretoReport: ParetoFrontierReport = useMemo(() => {
+    return ParetoReadingFrontierEngine.calculateFrontier(
+      scaledTokens || tokens,
+      parseInt(hskLevel, 10) || 2,
+      masteredChars,
+      5
+    );
+  }, [scaledTokens, tokens, hskLevel, masteredChars]);
+
+  // NONLLM-004: Pre-computed spoken sandhi map across active story tokens
+  const sandhiResults: ToneSandhiResult[] = useMemo(() => {
+    if (!toneSandhiEnabled) return [];
+    const active = scaledTokens || tokens;
+    const input = active
+      .filter(t => !t.isNonChinese && t.character)
+      .map(t => ({ character: t.character, pinyin: t.pinyin }));
+    return analyzeToneSandhi(input);
+  }, [scaledTokens, tokens, toneSandhiEnabled]);
+
+  const sandhiMap = useMemo(() => {
+    const map = new Map<number, ToneSandhiResult>();
+    let validIdx = 0;
+    const active = scaledTokens || tokens;
+    active.forEach((t, i) => {
+      if (!t.isNonChinese && t.character) {
+        if (sandhiResults[validIdx]) {
+          map.set(i, sandhiResults[validIdx]);
+        }
+        validIdx++;
+      }
+    });
+    return map;
+  }, [scaledTokens, tokens, sandhiResults]);
 
   const detectedCulturalNotes = useMemo(() => {
     const fullText = (scaledTokens || tokens).map(t => t.character).join('');
@@ -170,6 +229,11 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
   useEffect(() => {
     loadDueCards();
   }, [tokens]);
+
+  // Reset book page to 0 when opening a different story
+  useEffect(() => {
+    setCurrentBookPage(0);
+  }, [storyTitle]);
 
   const handleClozeAnswer = (selectedChar: string) => {
     if (!activeClozeCard) return;
@@ -248,6 +312,9 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
   // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      if (displayMenuRef.current && !displayMenuRef.current.contains(e.target as Node)) {
+        setShowDisplayMenu(false);
+      }
       if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node)) {
         setShowActionsMenu(false);
       }
@@ -428,7 +495,8 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
     let currentSentenceTokens: EnrichedSentenceToken[] = [];
     let currentSentenceText = '';
 
-    activeTokens.forEach((token, globalIdx) => {
+    for (let globalIdx = 0; globalIdx < activeTokens.length; globalIdx++) {
+      const token = activeTokens[globalIdx];
       currentSentenceTokens.push({
         item: token,
         globalIdx,
@@ -436,7 +504,24 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
       });
       currentSentenceText += token.character;
 
+      // Sentence boundary check: sentence-ending punctuation or explicit line break
       if (token.character.match(/[。！？.!?\n]/)) {
+        // Look ahead: absorb any immediately following closing quotes, brackets, or ellipsis
+        while (globalIdx + 1 < activeTokens.length) {
+          const nextToken = activeTokens[globalIdx + 1];
+          if (nextToken.isNonChinese && nextToken.character.match(/^[”’"'\)\]】》」』\s]+/)) {
+            globalIdx++;
+            currentSentenceTokens.push({
+              item: nextToken,
+              globalIdx,
+              grammarMatch: tokenGrammarMap.get(globalIdx)
+            });
+            currentSentenceText += nextToken.character;
+          } else {
+            break;
+          }
+        }
+
         sents.push({
           id: sents.length,
           tokens: [...currentSentenceTokens],
@@ -445,7 +530,7 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
         currentSentenceTokens = [];
         currentSentenceText = '';
       }
-    });
+    }
 
     if (currentSentenceTokens.length > 0) {
       const hasChineseOrWord = currentSentenceTokens.some(t => !t.item.isNonChinese && t.item.character.trim().length > 0);
@@ -480,6 +565,30 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
 
     return { sentences: sents, paragraphs: paras };
   }, [activeTokens, highlightGrammar]);
+
+  // Book Reading Virtual Window: Page calculations for long books/PDFs
+  const isLargeDocument = paragraphs.length > PARAS_PER_BOOK_PAGE;
+  const totalBookPages = Math.max(1, Math.ceil(paragraphs.length / PARAS_PER_BOOK_PAGE));
+  const safeBookPage = Math.min(currentBookPage, totalBookPages - 1);
+
+  const visibleParagraphs = React.useMemo(() => {
+    if (!isLargeDocument) return paragraphs;
+    const start = safeBookPage * PARAS_PER_BOOK_PAGE;
+    return paragraphs.slice(start, start + PARAS_PER_BOOK_PAGE);
+  }, [paragraphs, isLargeDocument, safeBookPage]);
+
+  // Automatically sync current page when active sentence changes during read aloud
+  React.useEffect(() => {
+    if (activePacingSentence !== null && isLargeDocument) {
+      const paraIndex = paragraphs.findIndex(p => p.sentences.some(s => s.id === activePacingSentence));
+      if (paraIndex !== -1) {
+        const targetPage = Math.floor(paraIndex / PARAS_PER_BOOK_PAGE);
+        if (targetPage !== safeBookPage) {
+          setCurrentBookPage(targetPage);
+        }
+      }
+    }
+  }, [activePacingSentence, isLargeDocument, paragraphs, safeBookPage]);
 
   // GTU-008: Unique vocabulary items for printable glossary
   const glossaryItems = React.useMemo(() => {
@@ -842,140 +951,171 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
             borderTop: '1px solid var(--border-subtle)'
           }}>
 
-            {/* Segment A: Text Display Controls */}
+            {/* Segment A: Text Display Controls & Unified Display Popover */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               
-              {/* Pinyin Toggle with options */}
-              <div style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius-pill)', overflow: 'hidden' }}>
+              {/* Quick Pinyin Toggle */}
+              <button
+                onClick={() => setShowPinyin(p => !p)}
+                className={`btn ${showPinyin ? 'btn-bamboo' : 'btn-secondary'}`}
+                style={{ padding: '5px 10px', fontSize: '12px', borderRadius: 'var(--radius-pill)', gap: '5px' }}
+                title={showPinyin ? 'Hide Pinyin annotations' : 'Show Pinyin annotations'}
+              >
+                {showPinyin ? <Eye size={13} /> : <EyeOff size={13} />}
+                <span>Pinyin</span>
+              </button>
+
+              {/* Display & Typography Consolidated Popover */}
+              <div className="toolbar-menu-container" ref={displayMenuRef}>
                 <button
-                  onClick={() => setShowPinyin(p => !p)}
-                  style={{
-                    background: showPinyin ? 'var(--bg-surface-hover)' : 'transparent',
-                    border: 'none',
-                    color: showPinyin ? 'var(--text-primary)' : 'var(--text-muted)',
-                    padding: '5px 10px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    cursor: 'pointer'
-                  }}
-                  title={showPinyin ? 'Hide Pinyin ruby annotations' : 'Show Pinyin ruby annotations'}
+                  onClick={() => setShowDisplayMenu(prev => !prev)}
+                  className={`btn ${scriptPreference === 'traditional' || toneColorMode !== 'off' || toneSandhiEnabled ? 'btn-bamboo' : 'btn-secondary'}`}
+                  style={{ padding: '5px 11px', fontSize: '12px', borderRadius: 'var(--radius-pill)', gap: '5px' }}
+                  title="Configure character script, tone colors, phonetic notation, and sandhi"
                 >
-                  {showPinyin ? <Eye size={13} /> : <EyeOff size={13} />}
-                  <span>Pinyin</span>
+                  <Palette size={13} />
+                  <span>Display ({scriptPreference === 'traditional' ? '繁' : '简'}{toneColorMode !== 'off' ? ' · 色' : ''})</span>
+                  <ChevronDown size={11} />
                 </button>
 
-                {showPinyin && (
-                  <select
-                    value={pinyinDisplayMode}
-                    onChange={(e) => {
-                      const mode = e.target.value as any;
-                      setPinyinDisplayMode(mode);
-                      StorageService.setItem(STORAGE_KEYS.PINYIN_DISPLAY_MODE, mode);
-                    }}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      borderLeft: '1px solid var(--border-subtle)',
-                      color: 'var(--text-secondary)',
-                      padding: '4px 8px',
-                      fontSize: '11px',
-                      outline: 'none',
-                      cursor: 'pointer'
-                    }}
-                    title="Pinyin Display Mode (All Words, Smart Fade, or by HSK Level)"
-                  >
-                    <option value="all">All Words</option>
-                    <option value="adaptive">Smart (Fade Learned)</option>
-                    <option value="level">By HSK Level</option>
-                  </select>
-                )}
+                {showDisplayMenu && (
+                  <div className="toolbar-menu-popover" style={{ width: '280px', padding: '14px', gap: '12px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '6px' }}>
+                      Typography & Phonetics
+                    </div>
 
-                {showPinyin && pinyinDisplayMode === 'level' && (
-                  <select
-                    value={hidePinyinLevel}
-                    onChange={(e) => {
-                      const lvl = parseInt(e.target.value, 10);
-                      setHidePinyinLevel(lvl);
-                      StorageService.setItem(STORAGE_KEYS.HIDE_PINYIN_LEVEL, String(lvl));
-                    }}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      borderLeft: '1px solid var(--border-subtle)',
-                      color: 'var(--text-secondary)',
-                      padding: '4px 8px',
-                      fontSize: '11px',
-                      outline: 'none',
-                      cursor: 'pointer'
-                    }}
-                    title="Select the threshold HSK level: Pinyin is hidden for words at or below this level, and shown for harder words above it"
-                  >
-                    <option value={1}>Hide ≤ HSK 1 (Show 2+)</option>
-                    <option value={2}>Hide ≤ HSK 2 (Show 3+)</option>
-                    <option value={3}>Hide ≤ HSK 3 (Show 4+)</option>
-                    <option value={4}>Hide ≤ HSK 4 (Show 5+)</option>
-                    <option value={5}>Hide ≤ HSK 5 (Show 6+)</option>
-                  </select>
-                )}
+                    {/* Script Preference (Simplified vs Traditional) */}
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                        Chinese Character Script:
+                      </label>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setScriptPreference('simplified');
+                            localStorage.setItem('moyun_script_preference', 'simplified');
+                          }}
+                          className={`btn ${scriptPreference === 'simplified' ? 'btn-bamboo' : 'btn-secondary'}`}
+                          style={{ flex: 1, padding: '5px 8px', fontSize: '11px', justifyContent: 'center' }}
+                        >
+                          Simplified (简体)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setScriptPreference('traditional');
+                            localStorage.setItem('moyun_script_preference', 'traditional');
+                          }}
+                          className={`btn ${scriptPreference === 'traditional' ? 'btn-bamboo' : 'btn-secondary'}`}
+                          style={{ flex: 1, padding: '5px 8px', fontSize: '11px', justifyContent: 'center' }}
+                        >
+                          Traditional (繁體)
+                        </button>
+                      </div>
+                    </div>
 
-                {showPinyin && (
-                  <select
-                    value={phoneticNotation}
-                    onChange={(e) => {
-                      const notation = e.target.value as 'pinyin' | 'zhuyin';
-                      setPhoneticNotation(notation);
-                      localStorage.setItem('moyun_phonetic_notation', notation);
-                    }}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      borderLeft: '1px solid var(--border-subtle)',
-                      color: 'var(--text-secondary)',
-                      padding: '4px 8px',
-                      fontSize: '11px',
-                      outline: 'none',
-                      cursor: 'pointer'
-                    }}
-                    title="Phonetic Script: Latin Pinyin or Zhuyin Bopomofo"
-                  >
-                    <option value="pinyin">Pinyin (拼音)</option>
-                    <option value="zhuyin">Zhuyin (注音)</option>
-                  </select>
+                    {/* Tone Color Coding */}
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                        Tone Color Coding:
+                      </label>
+                      <select
+                        value={toneColorMode}
+                        onChange={(e) => {
+                          const nextMode = e.target.value as ToneColorMode;
+                          setToneColorMode(nextMode);
+                          localStorage.setItem('moyun_tone_color_mode', nextMode);
+                        }}
+                        className="form-select"
+                        style={{ width: '100%', fontSize: '12px' }}
+                      >
+                        <option value="off">Off (Default Ink Typography)</option>
+                        <option value="pinyin">Pinyin Only</option>
+                        <option value="both">Both Hanzi & Pinyin</option>
+                      </select>
+                    </div>
+
+                    {/* Phonetic Script & Sandhi */}
+                    <div>
+                      <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                        Phonetic System & Sandhi:
+                      </label>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <select
+                          value={phoneticNotation}
+                          onChange={(e) => {
+                            const notation = e.target.value as 'pinyin' | 'zhuyin';
+                            setPhoneticNotation(notation);
+                            localStorage.setItem('moyun_phonetic_notation', notation);
+                          }}
+                          className="form-select"
+                          style={{ flex: 1, fontSize: '11px' }}
+                        >
+                          <option value="pinyin">Latin Pinyin (拼音)</option>
+                          <option value="zhuyin">Zhuyin (注音符号)</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = !toneSandhiEnabled;
+                            setToneSandhiEnabled(next);
+                            StorageService.setItem('moyun_tone_sandhi_enabled', String(next));
+                          }}
+                          className={`btn ${toneSandhiEnabled ? 'btn-bamboo' : 'btn-secondary'}`}
+                          style={{ padding: '4px 8px', fontSize: '11px' }}
+                          title="Spoken 3-3, 一/不 tone shifts"
+                        >
+                          🗣️ {toneSandhiEnabled ? 'Spoken' : 'Citation'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Pinyin Adaptive Display Mode */}
+                    {showPinyin && (
+                      <div>
+                        <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                          Pinyin Visibility Mode:
+                        </label>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <select
+                            value={pinyinDisplayMode}
+                            onChange={(e) => {
+                              const mode = e.target.value as any;
+                              setPinyinDisplayMode(mode);
+                              StorageService.setItem(STORAGE_KEYS.PINYIN_DISPLAY_MODE, mode);
+                            }}
+                            className="form-select"
+                            style={{ flex: 1, fontSize: '11px' }}
+                          >
+                            <option value="all">Show on All Words</option>
+                            <option value="adaptive">Smart (Fade Learned)</option>
+                            <option value="level">Filter by HSK Level</option>
+                          </select>
+                          {pinyinDisplayMode === 'level' && (
+                            <select
+                              value={hidePinyinLevel}
+                              onChange={(e) => {
+                                const lvl = parseInt(e.target.value, 10);
+                                setHidePinyinLevel(lvl);
+                                StorageService.setItem(STORAGE_KEYS.HIDE_PINYIN_LEVEL, String(lvl));
+                              }}
+                              className="form-select"
+                              style={{ width: '90px', fontSize: '11px' }}
+                            >
+                              <option value={1}>Hide ≤ 1</option>
+                              <option value={2}>Hide ≤ 2</option>
+                              <option value={3}>Hide ≤ 3</option>
+                              <option value={4}>Hide ≤ 4</option>
+                              <option value={5}>Hide ≤ 5</option>
+                            </select>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-
-              {/* TRC-001: Script Preference Toggle (Simplified vs Traditional) with clear English */}
-              <button
-                onClick={() => {
-                  const next: ChineseScript = scriptPreference === 'simplified' ? 'traditional' : 'simplified';
-                  setScriptPreference(next);
-                  localStorage.setItem('moyun_script_preference', next);
-                }}
-                className={`btn ${scriptPreference === 'traditional' ? 'btn-bamboo' : 'btn-secondary'}`}
-                style={{ padding: '5px 11px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: 'var(--radius-pill)' }}
-                title="Switch between Simplified (简体) and Traditional (繁體) Chinese characters"
-              >
-                <Languages size={13} />
-                <span>Script: {scriptPreference === 'traditional' ? 'Traditional (繁)' : 'Simplified (简)'}</span>
-              </button>
-
-              {/* TRC-003: Tone Color Coding */}
-              <button
-                onClick={() => {
-                  const nextMode: ToneColorMode = toneColorMode === 'off' ? 'pinyin' : toneColorMode === 'pinyin' ? 'both' : 'off';
-                  setToneColorMode(nextMode);
-                  localStorage.setItem('moyun_tone_color_mode', nextMode);
-                }}
-                className={`btn ${toneColorMode !== 'off' ? 'btn-bamboo' : 'btn-secondary'}`}
-                style={{ padding: '5px 11px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: 'var(--radius-pill)' }}
-                title="Tone Color Coding: Off | Pinyin Only | Hanzi & Pinyin"
-              >
-                <Palette size={13} />
-                <span>Tones: {toneColorMode === 'off' ? 'Off' : toneColorMode === 'pinyin' ? 'Pinyin' : 'Both'}</span>
-              </button>
             </div>
 
             {/* Segment B: Learning Helpers & Tools Dropdown */}
@@ -1014,6 +1154,16 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
                   <HelpCircle size={13} /> Cloze ({uniqueDueCount})
                 </button>
               )}
+
+              {/* NONLLM-005: Algorithmic Quiz Studio Button */}
+              <button
+                onClick={() => setShowAlgorithmicQuizModal(true)}
+                className="btn btn-primary"
+                style={{ padding: '5px 12px', fontSize: '12px', borderRadius: 'var(--radius-pill)', gap: '5px' }}
+                title="Launch Algorithmic Quiz Studio: Smart Cloze & Sentence Jigsaw drills synthesized from this story"
+              >
+                <span>⚡</span> 练习 (Practice)
+              </button>
 
               {/* Actions & Tools Dropdown Menu */}
               <div className="toolbar-menu-container" ref={actionsMenuRef}>
@@ -1225,12 +1375,62 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
           <h2 className="story-header-title">{convertScript(storyTitle || 'Mandarin Graded Story', scriptPreference)}</h2>
         </div>
 
+        {/* NONLLM-003: Pareto Reading Frontier Pedagogical Banner */}
+        {paretoReport.frontierCandidates.length > 0 && paretoReport.comprehensionJumpPercent > 0 && !isFocusMode && (
+          <div
+            className="print-hide"
+            style={{
+              margin: '0 0 16px 0',
+              padding: '10px 14px',
+              borderRadius: '8px',
+              backgroundColor: 'rgba(56, 189, 248, 0.08)',
+              border: '1px solid rgba(56, 189, 248, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '10px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+              <span style={{ fontSize: '14px' }}>📈</span>
+              <span>
+                <strong>Pareto Reading Frontier:</strong> Baseline comprehension: <strong>{paretoReport.baselineComprehensionPercent}%</strong>. Learning {paretoReport.frontierCandidates.length} high-frequency words unlocks <strong>+{paretoReport.comprehensionJumpPercent}%</strong> comprehension.
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {paretoReport.frontierCandidates.map(c => (
+                <button
+                  key={c.character}
+                  onClick={(e) => {
+                    const found = tokens.find(t => t.character === c.character);
+                    if (found) onCharClick(found, e);
+                  }}
+                  className="btn btn-secondary"
+                  style={{
+                    padding: '2px 8px',
+                    fontSize: '12px',
+                    fontFamily: 'var(--font-serif-zh)',
+                    fontWeight: 600,
+                    borderRadius: '4px',
+                    border: '1px solid var(--accent-bamboo)'
+                  }}
+                  title={`#${c.globalRank} | ${c.pinyin} | ${c.definition} (Appears ${c.occurrenceCount}x)`}
+                >
+                  {c.character}
+                  <span style={{ fontSize: '10px', color: 'var(--accent-gold)', marginLeft: '3px' }}>×{c.occurrenceCount}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Main Reading Flow: Paragraph-by-Paragraph with TRC-003 Tone Colors & ALS-001 Hover Audio */}
         <div 
           className={`story-content-horizontal ${isFocusMode ? 'focus-mode-body' : ''} ${!showPinyin ? 'pinyin-hidden' : ''}`}
           style={{ fontSize: isFocusMode ? `${focusFontSize}px` : undefined }}
         >
-          {paragraphs.map(para => (
+          {visibleParagraphs.map(para => (
             <div key={para.id} className="story-paragraph">
               {para.sentences.map(sentence => {
                 const isPacing = activePacingSentence === sentence.id;
@@ -1246,11 +1446,13 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
                       {sentence.tokens.map((tokenObj, idx) => {
                         const token = tokenObj.item;
                         const grammarMatch = tokenObj.grammarMatch;
+                        const itemGlobalIdx = tokenObj.globalIdx;
 
                         // Non-Chinese punctuation / symbol / whitespace renders naturally inline
                         if (token.isNonChinese) {
                           if (token.character.includes('\n')) {
-                            return <br key={idx} />;
+                            // Paragraph blocks already provide proper structural rhythm; avoid double spacing
+                            return null;
                           }
                           return (
                             <span key={idx} className="text-punctuation">
@@ -1330,18 +1532,24 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
                               onCharClick(token, e, sentence.text);
                             }}
                           >
-                            {displayPinyin && (
-                              <span
-                                className={`pinyin-above ${isAdaptiveFaded ? 'pinyin-adaptive-hidden' : ''}`}
-                                style={{
-                                  color: applyPinyinTone ? toneColor : undefined,
-                                  fontFamily: phoneticNotation === 'zhuyin' ? 'var(--font-zh)' : undefined,
-                                  letterSpacing: phoneticNotation === 'zhuyin' ? '0.05em' : undefined
-                                }}
-                              >
-                                {phoneticNotation === 'zhuyin' ? pinyinToZhuyin(token.pinyin) : token.pinyin}
-                              </span>
-                            )}
+                            {displayPinyin && (() => {
+                              const sandhi = sandhiMap.get(itemGlobalIdx);
+                              const activePinyin = (toneSandhiEnabled && sandhi?.isModified) ? sandhi.spokenPinyin : token.pinyin;
+                              const activeToneColor = (toneSandhiEnabled && sandhi?.isModified) ? getToneColor(sandhi.spokenPinyin) : toneColor;
+                              return (
+                                <span
+                                  className={`pinyin-above ${isAdaptiveFaded ? 'pinyin-adaptive-hidden' : ''} ${sandhi?.isModified ? 'sandhi-modified' : ''}`}
+                                  style={{
+                                    color: applyPinyinTone ? activeToneColor : undefined,
+                                    fontFamily: phoneticNotation === 'zhuyin' ? 'var(--font-zh)' : undefined,
+                                    letterSpacing: phoneticNotation === 'zhuyin' ? '0.05em' : undefined
+                                  }}
+                                  title={sandhi?.isModified ? `Spoken Sandhi Shift: ${sandhi.explanation}` : undefined}
+                                >
+                                  {phoneticNotation === 'zhuyin' ? pinyinToZhuyin(activePinyin) : activePinyin}
+                                </span>
+                              );
+                            })()}
                             <span
                               className={token.character.match(/^\d+$/) ? 'tcy' : ''}
                               style={{ color: applyHanziTone ? toneColor : undefined }}
@@ -1377,6 +1585,19 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                setSyntaxSentence(sentence.text);
+                                setSyntaxModalOpen(true);
+                              }}
+                              className="btn btn-secondary"
+                              style={{ padding: '4px 10px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                              title="Deconstruct sentence syntax tree and grammatical constituents (TRC-006)"
+                            >
+                              <GitCommit size={12} color="var(--accent-bamboo)" /> Syntax Tree
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 handleSaveSentenceToIsland(sentence.text, sentence.id, sentence.pinyin);
                               }}
                               className={`btn ${savedToIslandSentences[sentence.id] ? 'btn-bamboo' : 'btn-secondary'}`}
@@ -1405,6 +1626,68 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
               })}
             </div>
           ))}
+
+          {/* Book / PDF Pagination Controls Bar (Smooth Virtual Windowing for Long Texts) */}
+          {isLargeDocument && (
+            <div className="print-hide" style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '16px 20px',
+              margin: '24px 0 12px 0',
+              backgroundColor: 'var(--bg-surface)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-subtle)',
+              boxShadow: 'var(--shadow-subtle)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  type="button"
+                  disabled={safeBookPage <= 0}
+                  onClick={() => {
+                    setCurrentBookPage(p => Math.max(0, p - 1));
+                    window.scrollTo({ top: 300, behavior: 'smooth' });
+                  }}
+                  className="btn btn-secondary"
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: '12px',
+                    borderRadius: 'var(--radius-pill)',
+                    opacity: safeBookPage <= 0 ? 0.4 : 1,
+                    cursor: safeBookPage <= 0 ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <ChevronLeft size={14} /> Previous Section
+                </button>
+                <button
+                  type="button"
+                  disabled={safeBookPage >= totalBookPages - 1}
+                  onClick={() => {
+                    setCurrentBookPage(p => Math.min(totalBookPages - 1, p + 1));
+                    window.scrollTo({ top: 300, behavior: 'smooth' });
+                  }}
+                  className="btn btn-secondary"
+                  style={{
+                    padding: '6px 14px',
+                    fontSize: '12px',
+                    borderRadius: 'var(--radius-pill)',
+                    opacity: safeBookPage >= totalBookPages - 1 ? 0.4 : 1,
+                    cursor: safeBookPage >= totalBookPages - 1 ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Next Section <ChevronRight size={14} />
+                </button>
+              </div>
+
+              <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>📖 Section / Chapter:</span>
+                <strong style={{ color: 'var(--text-primary)' }}>{safeBookPage + 1}</strong>
+                <span>of</span>
+                <strong style={{ color: 'var(--text-primary)' }}>{totalBookPages}</strong>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>({paragraphs.length} total paragraphs)</span>
+              </div>
+            </div>
+          )}
 
         {/* GTU-008: Printable Vocabulary Glossary Appendix (Only visible in Print / PDF Export) */}
         <div className="print-only print-glossary-section">
@@ -1698,6 +1981,21 @@ export const ReadingTheater: React.FC<ReadingTheaterProps> = ({
         storyTitle={storyTitle}
         sentences={sentences.map(s => s.text)}
         selectedEngine={selectedEngine}
+      />
+
+      {/* NONLLM-005: Algorithmic Quiz Studio Modal */}
+      <AlgorithmicQuizModal
+        isOpen={showAlgorithmicQuizModal}
+        onClose={() => setShowAlgorithmicQuizModal(false)}
+        tokens={tokens}
+        storyTitle={storyTitle}
+      />
+
+      {/* TRC-006: Sentence Syntax Tree Visualizer Modal */}
+      <SentenceSyntaxModal
+        isOpen={syntaxModalOpen}
+        onClose={() => setSyntaxModalOpen(false)}
+        sentence={syntaxSentence}
       />
     </div>
   );

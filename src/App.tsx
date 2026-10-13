@@ -31,6 +31,8 @@ import { CommunityLeaderboardModal } from './components/CommunityLeaderboardModa
 import { StrokeOrderModal } from './components/StrokeOrderModal';
 import { SettingsModal } from './components/SettingsModal';
 import { CharacterTooltip, type TooltipState } from './components/CharacterTooltip';
+import { InkScrollInspector } from './components/InkScrollInspector';
+import { HandwritingCanvasModal } from './components/HandwritingCanvasModal';
 import { DictionaryOverrideModal } from './components/DictionaryOverrideModal';
 import { ToastContainer } from './components/ToastContainer';
 import { ToastStore } from './services/toastStore';
@@ -103,6 +105,20 @@ function App() {
   const [selectedConfusableChar, setSelectedConfusableChar] = useState<string | undefined>(undefined);
   const [isEtymologyModalOpen, setIsEtymologyModalOpen] = useState(false);
   const [selectedEtymologyChar, setSelectedEtymologyChar] = useState<string | undefined>(undefined);
+
+  // NONLLM-006: Unified Ink Scroll Inspector Drawer State
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  // AIM-002: Offline Handwriting Recognition Modal State
+  const [handwritingModalOpen, setHandwritingModalOpen] = useState(false);
+  const [inspectorCharData, setInspectorCharData] = useState<{
+    character: string;
+    pinyin?: string;
+    definition?: string;
+    hskLevel?: string;
+    radical?: string;
+    strokeCount?: string | number;
+    storySentence?: string;
+  }>({ character: '好' });
 
   // Database States
   const [hanziData, setHanziData] = useState<HanziItem[]>([]);
@@ -629,10 +645,32 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
               type="text"
               value={searchQuery}
               onChange={handleSearchChange}
-              placeholder="Search Hanzi, Pinyin or English..."
+              placeholder="Search Hanzi, Pinyin, English, or draw..."
               className="form-input"
-              style={{ paddingLeft: '34px', height: '34px', fontSize: '13px', borderRadius: 'var(--radius-sm)', width: '100%' }}
+              style={{ paddingLeft: '34px', paddingRight: '36px', height: '34px', fontSize: '13px', borderRadius: 'var(--radius-sm)', width: '100%' }}
             />
+            {/* AIM-002: Offline Handwriting Recognition Canvas Trigger */}
+            <button
+              type="button"
+              onClick={() => setHandwritingModalOpen(true)}
+              style={{
+                position: 'absolute',
+                right: '6px',
+                top: '5px',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--accent-bamboo)',
+                cursor: 'pointer',
+                padding: '4px 6px',
+                borderRadius: 'var(--radius-sm)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title="Draw Hanzi character on canvas (手写查字)"
+            >
+              <Edit3 size={15} />
+            </button>
             {showSearchResults && searchResults.length > 0 && (
               <div style={{
                 position: 'absolute',
@@ -1068,6 +1106,19 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
           setConfusableModalOpen(true);
           setTooltip(prev => ({ ...prev, visible: false }));
         }}
+        onOpenInspector={(char, pinyin, def, item, sentence) => {
+          setInspectorCharData({
+            character: char,
+            pinyin: pinyin || item?.pinyin || '',
+            definition: def || item?.definition || '',
+            hskLevel: item?.hsk_level || '1',
+            radical: item?.radical || '',
+            strokeCount: item?.stroke_count || '',
+            storySentence: sentence
+          });
+          setInspectorOpen(true);
+          setTooltip(prev => ({ ...prev, visible: false }));
+        }}
       />
 
       {/* HANZI PRACTICE WRITING MODAL */}
@@ -1184,6 +1235,40 @@ Write strictly in simplified Mandarin at HSK ${hskLevel || '3'} level without Pi
         character={selectedStrokeChar.char}
         pinyin={selectedStrokeChar.pinyin}
         definition={selectedStrokeChar.definition}
+      />
+
+      {/* NONLLM-006: Consolidated Ink Scroll Inspector Drawer */}
+      <InkScrollInspector
+        isOpen={inspectorOpen}
+        onClose={() => setInspectorOpen(false)}
+        character={inspectorCharData.character}
+        pinyin={inspectorCharData.pinyin}
+        definition={inspectorCharData.definition}
+        hskLevel={inspectorCharData.hskLevel}
+        radical={inspectorCharData.radical}
+        strokeCount={inspectorCharData.strokeCount}
+        storySentence={inspectorCharData.storySentence}
+        onNavigateToChar={(char) => {
+          setInspectorCharData(prev => ({
+            ...prev,
+            character: char,
+            pinyin: '',
+            definition: ''
+          }));
+        }}
+      />
+
+      {/* AIM-002: Offline Handwriting Recognition Modal */}
+      <HandwritingCanvasModal
+        isOpen={handwritingModalOpen}
+        onClose={() => setHandwritingModalOpen(false)}
+        externalHanziDb={hanziData}
+        onSelectCharacter={(char) => {
+          setSearchQuery(char);
+          const results = searchDictionary(char, hanziData, vocabData, overridesMap);
+          setSearchResults(results);
+          setShowSearchResults(true);
+        }}
       />
 
       {/* Global Toast & Native Dialog Container */}

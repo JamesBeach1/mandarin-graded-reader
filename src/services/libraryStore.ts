@@ -4,6 +4,8 @@ export interface SavedStory {
   text: string;
   hskLevel: string;
   timestamp: number;
+  category?: string;
+  categoryLabel?: string;
 }
 
 const DB_NAME = 'MandarinGradedReaderLibrary';
@@ -35,7 +37,7 @@ function openDB(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
-export async function saveStory(story: Omit<SavedStory, 'id' | 'timestamp'> & { id?: string }): Promise<SavedStory> {
+export async function saveStory(story: Omit<SavedStory, 'id' | 'timestamp'> & { id?: string; category?: string; categoryLabel?: string }): Promise<SavedStory> {
   const db = await openDB();
   const savedStory: SavedStory = {
     id: story.id || `story_${Date.now()}`,
@@ -43,6 +45,8 @@ export async function saveStory(story: Omit<SavedStory, 'id' | 'timestamp'> & { 
     text: story.text,
     hskLevel: story.hskLevel,
     timestamp: Date.now(),
+    category: story.category,
+    categoryLabel: story.categoryLabel
   };
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, 'readwrite');
@@ -64,18 +68,43 @@ export async function deleteStory(id: string): Promise<void> {
   });
 }
 
+import { ALL_ANTHOLOGY_STORIES } from '../data/bundledAnthology';
+
 export async function getSavedStories(): Promise<SavedStory[]> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readonly');
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
     const request = store.getAll();
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
-      const stories: SavedStory[] = request.result || [];
+      let stories: SavedStory[] = request.result || [];
+      const existingIds = new Set(stories.map(s => s.id));
+      const now = Date.now();
+
+      // Seed all bundled anthology stories that are not yet in the user's database
+      let hasAdded = false;
+      ALL_ANTHOLOGY_STORIES.forEach((item, idx) => {
+        if (!existingIds.has(item.id)) {
+          const s: SavedStory = {
+            id: item.id,
+            title: item.title,
+            text: item.text,
+            hskLevel: item.hskLevel,
+            timestamp: now - (idx * 60000),
+            category: item.category,
+            categoryLabel: item.categoryLabel
+          };
+          store.put(s);
+          stories.push(s);
+          hasAdded = true;
+        }
+      });
+
       // Sort stories by date descending
       stories.sort((a, b) => b.timestamp - a.timestamp);
       resolve(stories);
     };
   });
 }
+

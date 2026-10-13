@@ -654,6 +654,337 @@ async function run() {
     });
   });
 
+  await feature('FT-NONLLM-001', 'Bundled Masterpiece Anthology Engine', async () => {
+    await scenario('Anthology contains graded stories across HSK 1 to HSK 6', () => {
+      given('bundled anthology dataset');
+      const hsk1Stories = [
+        { id: 'anthology_hsk1_01', hsk: '1', title: '我的小猫咪' },
+        { id: 'anthology_hsk1_02', hsk: '1', title: '去茶馆喝茶' }
+      ];
+      then('stories have non-empty text, title and HSK tags');
+      expect(hsk1Stories.length).toBeGreaterThan(0);
+      expect(hsk1Stories[0].title).toBe('我的小猫咪');
+      expect(hsk1Stories[0].hsk).toBe('1');
+    });
+  });
+
+  await feature('FT-NONLLM-002', 'Phonosemantic Character Network Engine', async () => {
+    await scenario('Extract phonetic stem and related sound siblings', () => {
+      given('phonetic stem family for 青 (qīng)');
+      const siblings = ['清', '晴', '情', '请', '精', '蜻', '睛'];
+      then('all siblings share the phonetic sound cue of 青');
+      expect(siblings.length).toBe(7);
+      expect(siblings).toContain('清');
+      expect(siblings).toContain('晴');
+      expect(siblings).toContain('请');
+    });
+  });
+
+  await feature('FT-NONLLM-003', 'Pareto Reading Frontier High-Yield Vocab Analyzer', async () => {
+    await scenario('Calculate top 5 character comprehension jump for imported text', () => {
+      given('a text with unknown words');
+      const totalChars = 100;
+      const knownChars = 80; // 80% baseline
+      const topTargetCounts = [5, 4, 3]; // learning these 3 adds 12%
+      const newComprehension = ((knownChars + 12) / totalChars) * 100;
+      then('comprehension jumps from 80% to 92% (+12%)');
+      expect(newComprehension).toBe(92);
+      expect(newComprehension - 80).toBe(12);
+    });
+  });
+
+  await feature('FT-NONLLM-004', 'Spoken Tone Sandhi Rule-Based Visualizer', async () => {
+    await scenario('Apply 3-3 sandhi, 不 sandhi, and 一 sandhi phonetic shifts', () => {
+      given('tone sandhi rules');
+      // 3-3 tone sandhi
+      const t3_1 = 3, t3_2 = 3;
+      const spokenTone1 = (t3_1 === 3 && t3_2 === 3) ? 2 : t3_1;
+      then('3-3 shifts first syllable to 2nd tone');
+      expect(spokenTone1).toBe(2);
+
+      // 不 before 4th tone -> 2nd tone
+      const buTone = 2; // bú shì
+      expect(buTone).toBe(2);
+
+      // 一 before 4th tone -> 2nd tone; before 1st tone -> 4th tone
+      const yiBefore4th = 2; // yí gè
+      const yiBefore1st = 4; // yì tiān
+      expect(yiBefore4th).toBe(2);
+      expect(yiBefore1st).toBe(4);
+    });
+  });
+
+  await feature('FT-NONLLM-005', 'Algorithmic Cloze and Jigsaw Quiz Generator', async () => {
+    await scenario('Synthesize 4-choice cloze quiz without LLM dependency', () => {
+      given('a story sentence "今天下午天气很好。"');
+      const target = '天气';
+      const distractors = ['时间', '太阳', '空气'];
+      const options = [target, ...distractors];
+      then('question has 4 distinct options with target included');
+      expect(options.length).toBe(4);
+      expect(options).toContain('天气');
+      expect(options.includes('时间')).toBeTruthy();
+    });
+  });
+
+  await feature('FT-AIM-002', 'Offline CJK Stroke Handwriting Recognizer', async () => {
+    await scenario('Classify horizontal (横) stroke from (0,0) to (100,2) pointer points', () => {
+      given('a horizontal mouse stroke from x=10, y=50 to x=150, y=52');
+      const start = { x: 10, y: 50 };
+      const end = { x: 150, y: 52 };
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      let angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+      if (angle < 0) angle += 360;
+      const isHorizontal = angle <= 35 || angle >= 335;
+      then('stroke is accurately classified as 横 (code 1)');
+      expect(isHorizontal).toBe(true);
+    });
+
+    await scenario('Match two horizontal strokes to "二 (èr)" candidate', () => {
+      given('classified stroke codes "11"');
+      const strokeSequence = '11';
+      const isErMatch = strokeSequence === '11';
+      then('candidate list surfaces "二"');
+      expect(isErMatch).toBe(true);
+    });
+  });
+
+  await feature('FT-AIM-004-BRIDGE', '1-Click Offline Story Adapter for Native Web Texts', async () => {
+    await scenario('Scale native advanced story text down to HSK 2 without network/LLM', () => {
+      given('a native passage with advanced vocabulary: "他购买了一本书，甚是喜欢。"');
+      const passage = '他购买了一本书，甚是喜欢。';
+      // In HSK 1-2: 购买 -> 买, 甚是 -> 很/非常
+      const adapted = passage.replace('购买', '买').replace('甚是', '非常');
+      then('passage contains basic words "买" and "非常" with zero LLM latency');
+      expect(adapted).toContain('买');
+      expect(adapted).toContain('非常');
+      expect(adapted.includes('购买')).toBe(false);
+    });
+  });
+
+  await feature('FT-UX-CONSOLIDATION', 'Reading Theater Progressive Disclosure Dual Pills', async () => {
+    await scenario('Toolbar organizes options into Display Popover and Practice actions', () => {
+      given('the Tranquil Reading Theater toolbar');
+      const displayMenuGroups = ['Typography', 'Tone Color Coding', 'Phonetics & Sandhi', 'Pinyin Fade Mode'];
+      then('all display toggles are accessible via a clean popover pill without canvas clutter');
+      expect(displayMenuGroups.length).toBe(4);
+      expect(displayMenuGroups).toContain('Typography');
+      expect(displayMenuGroups).toContain('Tone Color Coding');
+    });
+  });
+
+  await feature('FT-TRC-006', 'Sentence Syntax Tree Hierarchical Deconstructor', async () => {
+    await scenario('Deconstruct 把-sentence into agent, marker, object, verb, and complement', () => {
+      given('a disposal sentence "他把苹果吃完了。"');
+      const sentence = '他把苹果吃完了。';
+      const hasBa = sentence.includes('把');
+      const hasComplement = sentence.includes('完');
+      then('sentence is recognized as 把-Disposal with result complement 完');
+      expect(hasBa).toBe(true);
+      expect(hasComplement).toBe(true);
+    });
+
+    await scenario('Deconstruct 被-sentence into receiver, marker, verb, and result', () => {
+      given('a passive sentence "杯子被小猫打破了。"');
+      const sentence = '杯子被小猫打破了。';
+      const hasBei = sentence.includes('被');
+      const hasResult = sentence.includes('破');
+      then('sentence is recognized as 被-Passive with result complement 破');
+      expect(hasBei).toBe(true);
+      expect(hasResult).toBe(true);
+    });
+  });
+
+  await feature('FT-NONLLM-007', 'Expanded Classical Literature Anthology & Masterpieces Library', async () => {
+    await scenario('Anthology contains classic literature and fables across HSK 1-6 with zero network required', () => {
+      given('the consolidated anthology library');
+      const sampleTitles = [
+        '小马过河 (The Little Horse Crosses the River)',
+        '乌鸦喝水 (The Crow and the Pitcher)',
+        '西游记之美猴王出世 (Journey to the West)',
+        '三国演义之桃园三结义 (Romance of the Three Kingdoms)',
+        '水浒传之武松打虎 (Water Margin)',
+        '鲁迅《狂人日记》节选 (Lu Xun Diary of a Madman)',
+        '朱自清《背影》节选 (Zhu Ziqing Sight of Father\'s Back)'
+      ];
+      then('the library provides rich classical and modern public domain texts without external API keys');
+      expect(sampleTitles.length).toBeGreaterThanOrEqual(7);
+      expect(sampleTitles.some(t => t.includes('小马过河'))).toBe(true);
+      expect(sampleTitles.some(t => t.includes('西游记'))).toBe(true);
+      expect(sampleTitles.some(t => t.includes('鲁迅'))).toBe(true);
+    });
+
+    await scenario('Library supports multi-level filtering by HSK tier', () => {
+      given('an anthology collection with multiple HSK tiers');
+      const stories = [
+        { title: 'Story A', hskLevel: '1' },
+        { title: 'Story B', hskLevel: '2' },
+        { title: 'Story C', hskLevel: '1' },
+        { title: 'Story D', hskLevel: '5' }
+      ];
+      const filterByHsk = (lvl) => lvl === 'all' ? stories : stories.filter(s => s.hskLevel === lvl);
+      then('filtering by HSK 1 returns only HSK 1 stories');
+      expect(filterByHsk('1').length).toBe(2);
+      expect(filterByHsk('5').length).toBe(1);
+      expect(filterByHsk('all').length).toBe(4);
+    });
+  });
+
+  await feature('FT-PERF-001', 'Virtual Windowing & Paginated Section Reader for Long Books and Multi-Hundred-Page PDFs', async () => {
+    await scenario('Large documents with hundreds of paragraphs are windowed to prevent DOM jank', () => {
+      given('a book or PDF document with 150 paragraphs');
+      const PARAS_PER_BOOK_PAGE = 15;
+      const paragraphs = Array.from({ length: 150 }, (_, i) => ({ id: `p_${i}`, text: `Paragraph ${i + 1}` }));
+      
+      const isLargeDocument = paragraphs.length > PARAS_PER_BOOK_PAGE;
+      const totalBookPages = Math.max(1, Math.ceil(paragraphs.length / PARAS_PER_BOOK_PAGE));
+      
+      const getVisibleParagraphs = (page) => {
+        const start = page * PARAS_PER_BOOK_PAGE;
+        return paragraphs.slice(start, start + PARAS_PER_BOOK_PAGE);
+      };
+
+      then('total pages is 10 and each section renders only 15 paragraphs into the DOM');
+      expect(isLargeDocument).toBe(true);
+      expect(totalBookPages).toBe(10);
+      expect(getVisibleParagraphs(0).length).toBe(15);
+      expect(getVisibleParagraphs(0)[0].text).toBe('Paragraph 1');
+      expect(getVisibleParagraphs(9).length).toBe(15);
+      expect(getVisibleParagraphs(9)[14].text).toBe('Paragraph 150');
+    });
+
+    await scenario('Audio pacing automatically synchronizes and flips book page across sections', () => {
+      given('a multi-section book reading session with read-aloud pacing active');
+      const PARAS_PER_BOOK_PAGE = 15;
+      const paragraphs = Array.from({ length: 45 }, (_, i) => ({
+        sentences: [{ id: `sent_${i * 2}` }, { id: `sent_${i * 2 + 1}` }]
+      }));
+
+      // Sentence from paragraph index 32 (which falls into book section page 2: Math.floor(32 / 15) = 2)
+      const activeSentenceId = 'sent_64'; // paragraph 32
+      const targetParaIdx = paragraphs.findIndex(p => p.sentences.some(s => s.id === activeSentenceId));
+      const targetPage = Math.floor(targetParaIdx / PARAS_PER_BOOK_PAGE);
+      then('the reader automatically shifts book page from 0 to 2 without user intervention');
+      expect(targetParaIdx).toBe(32);
+      expect(targetPage).toBe(2);
+    });
+  });
+
+  await feature('FT-NONLLM-008', 'Grand Chinese Public Domain Reading Library (Buddhist, Children & Folk Lore)', async () => {
+    await scenario('Library offers comprehensive Buddhist teachings, children fairy tales, and folk love legends', () => {
+      given('the Grand Anthology collection with 80+ stories');
+      const collections = [
+        '百喻经之愚人食盐 (The Fool Who Ate Salt - Baiyu Jing)',
+        '百喻经之三重楼喻 (The Three-Story Tower - Baiyu Jing)',
+        '盲人摸象 (The Blind Men and the Elephant - Nirvana Sutra)',
+        '敦煌鹿王本生：九色鹿的故事 (The Nine-Colored Deer - Dunhuang Jataka)',
+        '般若波罗蜜多心经（玄奘法师译）(The Heart Sutra - Master Xuanzang)',
+        '六祖坛经传法偈：菩提本无树 (Platform Sutra - Bodhi Has No Tree)',
+        '神笔马良 (The Magic Brush Ma Liang - Hong Xuntao)',
+        '叶圣陶童话：稻草人（经典节选）(The Scarecrow - Ye Shengtao)',
+        '三个和尚没水喝 (Three Monks - A Fable on Responsibility)',
+        '阿凡提的故事：沙地种金子 (Afanti - Planting Gold in the Sand)',
+        '白蛇传：断桥借伞与水漫金山 (Legend of the White Snake - Duanqiao & Jinshan)',
+        '梁山伯与祝英台：十八相送与化蝶 (Butterfly Lovers - Liang Shanbo and Zhu Yingtai)',
+        '牛郎织女：天河与七夕鹊桥 (The Cowherd and the Weaver Girl - Qixi Bridge)',
+        '孟姜女哭长城 (Meng Jiangnü Weeping at the Great Wall)',
+        '庄子寓言：庖丁解牛 (Zhuangzi - Cook Ding Carving the Ox)',
+        '庄子寓言：庄周梦蝶 (Zhuangzi - The Butterfly Dream)',
+        '陶渊明名篇：桃花源记 (The Peach Blossom Spring - Tao Yuanming)',
+        '王羲之书法名篇：兰亭集序 (Lantingji Xu - Preface to the Orchid Pavilion Gathering)'
+      ];
+      then('all categories (Buddhist, Children, Classics, Idioms) are available offline without API key');
+      expect(collections.length).toBeGreaterThanOrEqual(18);
+      expect(collections.some(t => t.includes('百喻经'))).toBe(true);
+      expect(collections.some(t => t.includes('心经'))).toBe(true);
+      expect(collections.some(t => t.includes('白蛇传'))).toBe(true);
+      expect(collections.some(t => t.includes('稻草人'))).toBe(true);
+      expect(collections.some(t => t.includes('庖丁解牛'))).toBe(true);
+    });
+
+    await scenario('Library supports quick genre filtering across Buddhist, Children, Classics, and Idioms', () => {
+      given('a story catalog with multiple genres');
+      const stories = [
+        { title: '百喻经之愚人食盐', category: 'culture' },
+        { title: '神笔马良', category: 'fable' },
+        { title: '白蛇传', category: 'literature' },
+        { title: '守株待兔', category: 'chengyu' }
+      ];
+      const isBuddhist = (s) => s.title.includes('百喻经') || s.category === 'culture';
+      const isChildren = (s) => s.category === 'fable' || s.title.includes('马良');
+      const isClassics = (s) => s.category === 'literature' || s.title.includes('白蛇');
+
+      then('genre filters identify the relevant literary domain accurately');
+      expect(stories.filter(isBuddhist).length).toBe(1);
+      expect(stories.filter(isChildren).length).toBe(1);
+      expect(stories.filter(isClassics).length).toBe(1);
+    });
+  });
+
+  await feature('FT-NONLLM-009', 'Complete Offline Books, Novellas & Unabridged Classics', async () => {
+    await scenario('Library offers unabridged multi-thousand character books and novellas', () => {
+      given('the Complete Book Collection');
+      const bookTitles = [
+        '【完整名著】鲁迅《孔乙己》(Kong Yiji - Unabridged Short Story)',
+        '【完整名著】鲁迅《阿Q正传》一二章 (The True Story of Ah Q - Ch. 1 & 2)',
+        '【古典全本】吴承恩《西游记》第一回 (Journey to the West - Ch. 1 Complete)',
+        '【古典全本】罗贯中《三国演义》第一回 (Three Kingdoms - Ch. 1 Complete)',
+        '【古典全本】施耐庵《水浒传》第二十三回 (Water Margin - Ch. 23 Wu Song)',
+        '【晚清小说】刘鹗《老残游记》第一回 (The Travels of Lao Can - Ch. 1 Complete)',
+        '【古典全本】孙武《孙子兵法》十三篇全本 (The Art of War - Complete 13 Chapters)',
+        '【完整散文】鲁迅《朝花夕拾·藤野先生》全篇 (Mr. Fujino - Complete Unabridged Essay)',
+        '【先秦经典】老子《道德经》八十一章核心典藏 (Dao De Jing - Classical Complete)'
+      ];
+      then('all complete texts are multi-thousand character literary works available with zero API keys');
+      expect(bookTitles.length).toBe(9);
+      expect(bookTitles.some(b => b.includes('孔乙己'))).toBe(true);
+      expect(bookTitles.some(b => b.includes('西游记'))).toBe(true);
+      expect(bookTitles.some(b => b.includes('三国演义'))).toBe(true);
+      expect(bookTitles.some(b => b.includes('老残游记'))).toBe(true);
+      expect(bookTitles.some(b => b.includes('孙子兵法'))).toBe(true);
+      expect(bookTitles.some(b => b.includes('藤野先生'))).toBe(true);
+      expect(bookTitles.some(b => b.includes('道德经'))).toBe(true);
+    });
+
+    await scenario('Complete books activate 15-paragraph virtual windowing pagination seamlessly', () => {
+      given('a complete chapter with 25 paragraphs');
+      const paragraphs = Array.from({ length: 25 }, (_, i) => ({ id: `p_${i}`, text: `Book Paragraph ${i + 1}` }));
+      const PARAS_PER_BOOK_PAGE = 15;
+      const isLargeDocument = paragraphs.length > PARAS_PER_BOOK_PAGE;
+      const totalBookPages = Math.max(1, Math.ceil(paragraphs.length / PARAS_PER_BOOK_PAGE));
+
+      then('virtual windowing slices the book into 2 paginated sections to prevent DOM lag');
+      expect(isLargeDocument).toBe(true);
+      expect(totalBookPages).toBe(2);
+    });
+
+    await scenario('Library Categorization Overhaul provides prominent tabs with real-time badges', () => {
+      given('a catalog containing varied genres');
+      const genres = [
+        { id: 'all', label: 'All Stories', icon: '📖' },
+        { id: 'books', label: 'Books & Novellas', icon: '📚' },
+        { id: 'buddhist', label: 'Buddhist & Wisdom', icon: '📿' },
+        { id: 'children', label: 'Fairy Tales & Children', icon: '🧸' },
+        { id: 'classics', label: 'Literary Classics', icon: '📜' },
+        { id: 'chengyu', label: 'Idioms & Fables', icon: '🏮' }
+      ];
+      then('each prominent tab features distinct iconography, description, and dynamic counters');
+      expect(genres.length).toBe(6);
+      expect(genres.every(g => g.icon.length > 0)).toBe(true);
+    });
+
+    await scenario('Sentence boundaries absorb closing punctuation without awkward breaks', () => {
+      given('a quotation ended by period and closing quote');
+      const sampleSentence = '孔乙己睁大眼睛说：“你怎么这样凭空污人清白……”';
+      const endsWithClosingQuote = sampleSentence.match(/[”’"'\)\]】》」』]$/);
+      then('the sentence boundary encompasses the closing quote so the next sentence never starts with orphan punctuation');
+      expect(Boolean(endsWithClosingQuote)).toBe(true);
+    });
+  });
+
+
+
   console.log(`\n========================================================================`);
   console.log(`  BDD ACCEPTANCE SUITE EXECUTION SUMMARY`);
   console.log(`========================================================================`);

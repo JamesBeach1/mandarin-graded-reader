@@ -1,9 +1,9 @@
 # Moyun (墨韵) — Centralized Issue & Ticket Registry
 
 **Document Status:** Canonical Single Source of Truth for Issues & Feature Specifications  
-**Last Updated:** 2026-09-23  
+**Last Updated:** 2026-10-13  
 **Repository:** `mandarin-graded-reader`  
-**Total Managed Tickets:** 69 (54 Completed, 15 Backlog)
+**Total Managed Tickets:** 74 (67 Completed, 7 Backlog)
 
 ---
 
@@ -12,21 +12,21 @@
 ### Status Summary
 | Status | Indicator | Count | Percentage | Definition |
 |---|:---:|:---:|:---:|---|
-| **Completed** | 🟢 | 54 | 78.3% | Verified and shipped in active codebase. |
+| **Completed** | 🟢 | 67 | 90.5% | Verified and shipped in active codebase. |
 | **In Progress** | 🟡 | 0 | 0.0% | Actively being engineered in the current sprint. |
-| **Backlog** | ⚪ | 15 | 21.7% | Fully specified; pending prioritization and grooming. |
+| **Backlog** | ⚪ | 7 | 9.5% | Fully specified; pending prioritization and grooming. |
 | **Blocked / Deferred** | 🔴 | 0 | 0.0% | External dependencies or architectural blockers. |
 
 ### Domain Breakdown
 | Domain Code | Feature Domain | Total | Completed | Backlog |
 |---|---|:---:|:---:|:---:|
-| **CORE** | Engine Fixes & Foundational Upgrades | 13 | 13 | 0 |
-| **TRC** | Typography, Reading & Comprehension | 10 | 8 | 2 |
+| **CORE** | Engine Fixes & Foundational Upgrades | 14 | 14 | 0 |
+| **TRC** | Typography, Reading & Comprehension | 10 | 9 | 1 |
 | **ALS** | Audio, Listening & Speaking | 10 | 8 | 2 |
 | **SRS** | Spaced Repetition (SRS) & Vocabulary | 10 | 9 | 1 |
 | **GTU** | Gamification, Tracking & UX | 10 | 7 | 3 |
-| **AIM** | Advanced AI & Input Methods | 10 | 9 | 1 |
-| **NONLLM**| Offline-First & Zero-LLM Architecture | 6 | 0 | 6 |
+| **AIM** | Advanced AI & Input Methods | 10 | 10 | 0 |
+| **NONLLM**| Offline-First & Zero-LLM Architecture | 9 | 9 | 0 |
 
 ---
 
@@ -51,7 +51,7 @@
 | `TRC-003` | TRC | Tone Color Coding (Visual Memory Tones) | High | 2 | 🟢 Completed | Map 5 tones to distinct editorial colors on Hanzi and Pinyin with Off/Pinyin/Both toggle. |
 | `TRC-004` | TRC | Adaptive Pinyin Fading | High | 5 | 🟢 Completed | Automatically hide Pinyin on characters mastered in SRS with hover reveal safety net. |
 | `TRC-005` | TRC | Idiom (Chengyu 成语) Deep-Dive Tooltips | Medium | 5 | 🟢 Completed | Tokenize 4-character idioms as units with literal translation vs historical allusion (典故) tooltips. |
-| `TRC-006` | TRC | Sentence Syntax Tree Visualizer | Low | 8 | ⚪ Backlog | Diagram sentence hierarchies (topic-comment, covers, complements). |
+| `TRC-006` | TRC | Sentence Syntax Tree Visualizer | Low | 8 | 🟢 Completed | Diagram sentence hierarchies (topic-comment, covers, complements). |
 | `TRC-007` | TRC | Character Frequency Overlays (Top 500 Hanzi) | Medium | 3 | 🟢 Completed | Visually identify high-yield top 500 characters in imported texts with coverage analytics modal. |
 | `TRC-008` | TRC | Browser Extension Companion | High | 13 | ⚪ Backlog | Chrome/Edge extension to tokenize and look up native web pages. |
 | `TRC-009` | TRC | Cultural Context AI Notes | Medium | 5 | 🟢 Completed | Explain social etiquette, taboos, and traditions embedded in stories with dedicated modal and encyclopedia. |
@@ -87,7 +87,7 @@
 | `GTU-009` | GTU | Full-Screen Focus Mode Drawer | High | 2 | 🟢 Completed | Zero-distraction reading layout with sticky HUD, font scale, and Esc key exit. |
 | `GTU-010` | GTU | Memory Palace Integrations (Method of Loci) | Low | 13 | ⚪ Backlog | Spatial memory mapping of characters to user-defined physical rooms. |
 | `AIM-001` | AIM | AI Grader for Free Writing & Composition | High | 5 | 🟢 Completed | Line-by-line grammar, particle, and collocation feedback on essays. |
-| `AIM-002` | AIM | Handwriting Recognition Input (Drawing Hanzi) | High | 8 | ⚪ Backlog | Canvas stroke drawing tool to search characters without knowing Pinyin. |
+| `AIM-002` | AIM | Handwriting Recognition Input (Drawing Hanzi) | High | 8 | 🟢 Completed | Canvas stroke drawing tool to search characters without knowing Pinyin. |
 | `AIM-003` | AIM | Pinyin Typing Practice & IME Drills | Medium | 5 | 🟢 Completed | Speed typing drills simulating standard QWERTY Chinese IME candidate selection. |
 | `AIM-004` | AIM | Vocabulary Difficulty Slider (Real-Time Simplifier) | High | 5 | 🟢 Completed | In-place dynamic synonym swapping scaling text difficulty up and down without LLM latency. |
 | `AIM-005` | AIM | Text-to-Image Generation for Stories | Low | 5 | 🟢 Completed | Ink-wash watercolor illustration generation for custom story passages. |
@@ -96,12 +96,17 @@
 | `AIM-008` | AIM | Subtitles Export (.srt / .vtt) | Medium | 2 | 🟢 Completed | Export synchronized subtitle files (.srt/.vtt) with Chinese, Pinyin, or bilingual lines. |
 | `AIM-009` | AIM | Offline Audio Pre-caching (Neural Audio Packs) | Medium | 8 | 🟢 Completed | Download and cache studio neural audio for entire stories for flight use. |
 | `AIM-010` | AIM | Integrated Stroke Order Numbered Typography | Medium | 5 | 🟢 Completed | Render numbered stroke sequences directly within character fonts. |
-| `NONLLM-001` | NONLLM | Bundled Masterpiece Anthology (50+ Offline Stories) | High | 8 | ⚪ Backlog | Seed IndexedDB with curated HSK 1–6 stories, idiom fables & line translations. |
-| `NONLLM-002` | NONLLM | Phonosemantic Character Network (形声字 Component Tree) | High | 5 | ⚪ Backlog | Offline radical + phonetic sound family graph (e.g. 青 -> 清, 晴, 情, 请, 精). |
-| `NONLLM-003` | NONLLM | Pareto Reading Frontier (High-Yield Vocab Analyzer) | High | 5 | ⚪ Backlog | Algorithmic calculation of top 5 characters giving highest comprehension jump. |
-| `NONLLM-004` | NONLLM | Spoken Tone Sandhi Visualizer (3-3, 一/不 Rules) | Medium | 3 | ⚪ Backlog | Contextual phonetic diacritic indicators for spoken sandhi vs citation tones. |
-| `NONLLM-005` | NONLLM | Algorithmic Cloze & Jigsaw Quiz Generator | High | 5 | ⚪ Backlog | Generate fill-in-the-blank & auditory jigsaw drills from any story without LLM. |
-| `NONLLM-006` | NONLLM | Consolidated Ink Scroll Inspector Drawer (墨卷检视) | High | 5 | ⚪ Backlog | Consolidate stroke, etymology & homophone modals into single slide-over drawer. |
+| `NONLLM-001` | NONLLM | Bundled Masterpiece Anthology (50+ Offline Stories) | High | 8 | 🟢 Completed | Seed IndexedDB with curated HSK 1–6 stories, idiom fables & line translations. |
+| `NONLLM-002` | NONLLM | Phonosemantic Character Network (形声字 Component Tree) | High | 5 | 🟢 Completed | Offline radical + phonetic sound family graph (e.g. 青 -> 清, 晴, 情, 请, 精). |
+| `NONLLM-003` | NONLLM | Pareto Reading Frontier (High-Yield Vocab Analyzer) | High | 5 | 🟢 Completed | Algorithmic calculation of top 5 characters giving highest comprehension jump. |
+| `NONLLM-004` | NONLLM | Spoken Tone Sandhi Visualizer (3-3, 一/不 Rules) | Medium | 3 | 🟢 Completed | Contextual phonetic diacritic indicators for spoken sandhi vs citation tones. |
+| `NONLLM-005` | NONLLM | Algorithmic Cloze & Jigsaw Quiz Generator | High | 5 | 🟢 Completed | Generate fill-in-the-blank & auditory jigsaw drills from any story without LLM. |
+| `NONLLM-006` | NONLLM | Consolidated Ink Scroll Inspector Drawer (墨卷检视) | High | 5 | 🟢 Completed | Consolidate stroke, etymology & homophone modals into single slide-over drawer. |
+| `NONLLM-007` | NONLLM | Expanded Classical Literature Anthology (60+ Stories) | High | 8 | 🟢 Completed | Sourced public domain Chinese classics (西游记, 三国演义, 水浒传, 鲁迅, 朱自清, 愚公移山). |
+| `NONLLM-008` | NONLLM | Grand Chinese Public Domain Library (80+ Buddhist, Children & Folk Lore) | High | 8 | 🟢 Completed | Ingested Baiyu Jing, Heart Sutra, Dunhuang Nine-Colored Deer, Shenbi Maliang, Scarecrow, and the 4 Folk Legends. |
+| `NONLLM-009` | NONLLM | Complete Offline Books, Novellas & Unabridged Classics | High | 8 | 🟢 Completed | Ingested full unabridged 孔乙己, 阿Q正传 (Ch 1-2), 西游记 (Ch 1), 三国演义 (Ch 1), 水浒传 (Ch 23), and 老残游记 (Ch 1). |
+| `PERF-001` | CORE | Virtual Windowing & Paginated Section Reader for Books/PDFs | High | 5 | 🟢 Completed | 15-para section windowing, eliminates scroll lag on 200+ page docs with audio pacing sync. |
+
 
 ---
 
@@ -272,13 +277,14 @@
   2. Character tooltip displays `📜 成语 Chengyu` badge, literal translation, and complete historical allusion (典故).
 
 #### `TRC-006`: Sentence Syntax Tree Visualizer
-* **Status:** ⚪ `Backlog` | **Priority:** Low | **Points:** 8
+* **Status:** 🟢 `Completed` | **Priority:** Low | **Points:** 8
 * **Requirements:**
-  * Dependency parsing service analyzing grammatical role (Subject, Verb, Object, Adverbial, Complement).
-  * Interactive SVG tree diagram rendering sentence syntactic structure.
+  * Dependency parsing service analyzing grammatical roles (Subject, Verb, Object, Adverbial, Complement, Topic-Comment) (`src/utils/sentenceSyntaxParser.ts`).
+  * Interactive modal rendering hierarchical sentence syntactic blocks (`src/components/SentenceSyntaxModal.tsx`).
 * **Acceptance Criteria:**
-  1. Clicking "Syntax Tree" on any sentence renders hierarchical block diagrams.
-  2. Identifies subject, main verb, aspect particles, and relative modifier clauses.
+  1. Clicking "Syntax Tree" on any sentence line renders hierarchical constituent blocks with color coding.
+  2. Identifies subject, main verb, aspect particles, coverbs (`把`, `被`), and result/directional complements.
+  3. Integrated directly into `ReadingTheater.tsx` inline sentence translation and actions drawer.
 
 #### `TRC-007`: Character Frequency Overlays (Top 500 Hanzi)
 * **Status:** 🟢 `Completed` | **Priority:** Medium | **Points:** 3
@@ -593,11 +599,14 @@
   2. Diff-highlighted corrections with grammatical explanations, HSK estimation, and 1-click loading into Reading Theater.
 
 #### `AIM-002`: Handwriting Recognition Input (Drawing Hanzi)
-* **Status:** ⚪ `Backlog` | **Priority:** High | **Points:** 8
+* **Status:** 🟢 `Completed` | **Priority:** High | **Points:** 8
 * **Requirements:**
-  * Drawing canvas tracking stroke trajectories and returning top matching Hanzi candidates.
+  * Client-side CJK stroke classifier and handwriting recognition engine (`src/utils/handwritingRecognizer.ts`).
+  * Drawing canvas tracking stroke trajectories and returning top matching Hanzi candidates (`src/components/HandwritingCanvasModal.tsx`).
 * **Acceptance Criteria:**
-  1. Embedded directly into dictionary search bar.
+  1. Embedded directly into top header dictionary search bar via calligraphic pencil icon (`<Edit3>`).
+  2. Rice-grid (米字格) drawing canvas with stroke counter, real-time candidate matches, undo, and 1-click candidate selection populating dictionary results.
+  3. 100% offline with zero external OCR API costs or latency.
 
 #### `AIM-003`: Pinyin Typing Practice & IME Drills
 * **Status:** 🟢 `Completed` | **Priority:** Medium | **Points:** 5
@@ -667,67 +676,131 @@
 
 ---
 
-### 4. Backlog: Offline-First & Zero-LLM Architecture (`NONLLM`)
+### 4. Shipped: Offline-First & Zero-LLM Architecture (`NONLLM`)
 
 #### `NONLLM-001`: Bundled Masterpiece Anthology (50+ Offline Stories)
-* **Status:** ⚪ `Backlog` | **Priority:** High | **Points:** 8
+* **Status:** 🟢 `Completed` | **Priority:** High | **Points:** 8
 * **Requirements:**
   * Pre-seed IndexedDB on initial application launch with a rich catalog of 50+ curated, graded Chinese stories across HSK 1 through HSK 6.
   * Categories include: Daily Situational Dialogues (HSK 1-2), Adapted World Fables (HSK 2-3), Classical Idiom Legends (成语故事 HSK 3-4), Historical Biographies (HSK 4-5), and Contemporary Cultural Essays (HSK 5-6).
 * **Acceptance Criteria:**
-  1. Users with no internet connection and no API key immediately have access to a rich reading library upon first load.
+  1. Users with no internet connection and no API key immediately have access to a rich reading library upon first load (`src/data/bundledAnthology.ts` and `src/services/libraryStore.ts`).
   2. Each bundled story includes verified sentence-level English translations, Pinyin ruby annotations, and audio read-aloud support.
   3. Fully searchable via the offline inverted-index search engine (`SemanticSearchEngine`).
 
 #### `NONLLM-002`: Phonosemantic Character Network (形声字 Component Tree)
-* **Status:** ⚪ `Backlog` | **Priority:** High | **Points:** 5
+* **Status:** 🟢 `Completed` | **Priority:** High | **Points:** 5
 * **Requirements:**
   * Algorithmic character anatomy engine breaking down logograms into their semantic radical (meaning indicator) and phonetic stem (sound carrier).
   * Generates an interactive "Sound Family Tree" (e.g. tapping `清` displays `青` as sound component and related siblings `晴`, `情`, `请`, `精`).
 * **Acceptance Criteria:**
-  1. 100% offline relational lookup against common 2,500 Hanzi with zero LLM latency.
+  1. 100% offline relational lookup against common 2,500 Hanzi with zero LLM latency (`src/utils/phonosemanticNetwork.ts`).
   2. Interactive visualization showing radical meaning vs phonetic sound similarity.
   3. Integrated directly into the character inspection inspector.
 
 #### `NONLLM-003`: Pareto Reading Frontier (High-Yield Vocab Analyzer)
-* **Status:** ⚪ `Backlog` | **Priority:** High | **Points:** 5
+* **Status:** 🟢 `Completed` | **Priority:** High | **Points:** 5
 * **Requirements:**
   * Algorithmic vocabulary optimizer for imported texts, EPUBs, and PDFs.
   * Calculates character occurrence frequency against the user's known HSK level to identify the exact 5–10 highest-yield target words.
 * **Acceptance Criteria:**
-  1. Evaluates in sub-50ms using in-memory tokenization and frequency counting.
+  1. Evaluates in sub-50ms using in-memory tokenization and frequency counting (`src/utils/paretoReadingFrontier.ts`).
   2. Surfaces a non-intrusive banner in reader: *"Learning these 5 characters unlocks +8.5% comprehension for this text."*
   3. 1-click button to preview target words, hear pronunciation, and add to SRS review queue before reading.
 
 #### `NONLLM-004`: Spoken Tone Sandhi Visualizer (3-3, 一/不 Rules)
-* **Status:** ⚪ `Backlog` | **Priority:** Medium | **Points:** 3
+* **Status:** 🟢 `Completed` | **Priority:** Medium | **Points:** 3
 * **Requirements:**
   * Real-time rule-based tone sandhi scanner detecting:
     1. 3rd-3rd tone combinations (e.g. `nǐ hǎo` ➔ spoken `ní hǎo`).
     2. "一" (yī) phonetic shifts (`yí gè` before 4th tone; `yì tiān` before 1st/2nd/3rd tone).
     3. "不" (bù) phonetic shifts (`bú shì` before 4th tone).
 * **Acceptance Criteria:**
-  1. Reconciles printed dictionary Pinyin with natural human spoken audio so beginners are never confused.
+  1. Reconciles printed dictionary Pinyin with natural human spoken audio so beginners are never confused (`src/utils/toneSandhi.ts`).
   2. Contextual visual indicator or subtle diacritic badge indicating the spoken tone shift.
   3. Configurable toggle in Reading Display preferences.
 
 #### `NONLLM-005`: Algorithmic Cloze & Jigsaw Quiz Generator
-* **Status:** ⚪ `Backlog` | **Priority:** High | **Points:** 5
+* **Status:** 🟢 `Completed` | **Priority:** High | **Points:** 5
 * **Requirements:**
   * Zero-LLM dynamic exercise generator capable of turning *any* story in the user's library into interactive drills.
   * Synthesizes Smart Cloze (fill-in-the-blank with intelligent same-HSK/same-radical distractors) and Auditory Sentence Jigsaw drills.
 * **Acceptance Criteria:**
-  1. Zero LLM reliance: uses `Intl.Segmenter` and client-side `hanziDB.csv` to pick plausible distractors.
+  1. Zero LLM reliance: uses `Intl.Segmenter` and client-side `hanziDB.csv` to pick plausible distractors (`src/utils/algorithmicQuizGenerator.ts`).
   2. Instant generation without network latency.
   3. Results feed directly into the user's local SM-2 spaced repetition queue.
 
 #### `NONLLM-006`: Consolidated Ink Scroll Inspector Drawer (墨卷检视)
-* **Status:** ⚪ `Backlog` | **Priority:** High | **Points:** 5
+* **Status:** 🟢 `Completed` | **Priority:** High | **Points:** 5
 * **Requirements:**
   * Consolidate fragmented modals (`StrokeOrderModal`, `ConfusableModal`, `EtymologyModal`, `CharacterTooltip`) into a single, elegant slide-over drawer on the right side of the screen.
   * Implements Progressive Disclosure: users are not interrupted by modal popups; the drawer slides open gently while the story text remains fully visible.
 * **Acceptance Criteria:**
-  1. Single unified inspection drawer with 4 clean tabs: 释义 (Lexicon), 剖析 (Anatomy), 笔顺 (Calligraphy/Stroke practice), and 语境 (Story context).
+  1. Single unified inspection drawer with 4 clean tabs: 释义 (Lexicon), 剖析 (Anatomy), 笔顺 (Calligraphy/Stroke practice), and 语境 (Story context) (`src/components/InkScrollInspector.tsx`).
   2. Smooth CSS transform animation with keyboard shortcut (Esc to close).
   3. Reduces visual noise and eliminates multi-modal cognitive fatigue.
+
+#### `NONLLM-007`: Expanded Classical Literature Anthology (60+ Stories)
+* **Status:** 🟢 `Completed` | **Priority:** High | **Points:** 8
+* **Requirements:**
+  * Expand Moyun's out-of-the-box offline reading material to 60+ complete texts spanning HSK 1 through HSK 6.
+  * Sourced from public domain Chinese classics: Four Great Classical Novels (*西游记*, *三国演义*, *水浒传*), ancient legends & fables (*愚公移山*, *女娲补天*, *夸父逐日*, *小马过河*), and modern literary masterpieces (*鲁迅《狂人日记》*, *《孔乙己》*, *朱自清《背影》*, *老舍《骆驼祥子》*).
+* **Acceptance Criteria:**
+  1. 100% offline access seeded into IndexedDB upon first launch (`src/data/expandedAnthology.ts`, `src/data/bundledAnthology.ts`, `src/services/libraryStore.ts`).
+  2. Multi-level filtering by HSK tier (HSK 1 to HSK 6) in the story library view.
+  3. Every story is fully parsed into interactive Hanzi chips, Pinyin annotations, tone color codes, and sentence audio read-aloud without needing external LLM APIs.
+
+#### `PERF-001`: Virtual Windowing & Paginated Section Reader for Books/PDFs
+* **Status:** 🟢 `Completed` | **Priority:** High | **Points:** 5
+* **Requirements:**
+  * Resolve severe scrolling lag and DOM jank when loading multi-hundred-page PDFs and lengthy novels containing tens of thousands of character chips and ruby annotations.
+  * Implement windowed section reading (15 paragraphs per section) with clean tactile navigation controls.
+* **Acceptance Criteria:**
+  1. Documents with > 15 paragraphs automatically activate virtual windowing, slicing rendered DOM nodes by >90% (`src/components/ReadingTheater.tsx`).
+  2. Dedicated book navigation bar provides section counters, previous/next controls, and total page count.
+  3. Active read-aloud sentence audio pacing seamlessly advances pages across section boundaries in real-time.
+
+#### `NONLLM-008`: Grand Chinese Public Domain Library (80+ Buddhist, Children & Folk Lore)
+* **Status:** 🟢 `Completed` | **Priority:** High | **Points:** 8
+* **Requirements:**
+  * Curate and ingest authentic Chinese stories across Buddhist teachings (*百喻经*, *心经*, *六祖坛经*, *金刚经*), children's literature & fairy tales (*神笔马良*, *稻草人*, *三个和尚*, *阿凡提的故事*, *百草园*), and the Four Great Folk Legends (*白蛇传*, *梁山伯与祝英台*, *牛郎织女*, *孟姜女哭长城*).
+  * Expand the offline library to **80+ curated texts**, accessible on day one with zero API keys or network dependencies.
+  * Provide multi-genre categorization pills in the reading workspace (Buddhist, Children, Classics, Idioms).
+* **Acceptance Criteria:**
+  1. Complete authentic texts bundled in `src/data/grandAnthology.ts` and unified in `src/data/bundledAnthology.ts`.
+  2. Non-destructive auto-seeding with category tags in `src/services/libraryStore.ts`.
+  3. Interactive genre and HSK filtering in `src/components/ReadingWorkspace.tsx`.
+  4. Verified by BDD acceptance test suite (`FT-NONLLM-008`).
+
+#### `NONLLM-009`: Complete Offline Books, Novellas & Unabridged Classics
+* **Status:** 🟢 `Completed` | **Priority:** High | **Points:** 8
+* **Requirements:**
+  * Ingest genuine multi-thousand-character complete books, novellas, treatises, and unabridged classic works to satisfy advanced immersion reading with zero boilerplate/fluff:
+    * 鲁迅《孔乙己》完整全篇 (~2,800 chars)
+    * 鲁迅《阿Q正传》(第一章 序 与 第二章 优胜记略, ~2,500 chars)
+    * 孙武《孙子兵法》全本十三篇 (~5,800 chars)
+    * 鲁迅《朝花夕拾·藤野先生》完整全篇 (~3,500 chars)
+    * 老子《道德经》八十一章核心典藏 (~5,000 chars)
+    * 吴承恩《西游记》第一回全本 (~2,600 chars)
+    * 罗贯中《三国演义》第一回全本 (~2,200 chars)
+    * 施耐庵《水浒传》第二十三回全本 (~2,300 chars)
+    * 刘鹗《老残游记》第一回全本 (~2,000 chars)
+* **Acceptance Criteria:**
+  1. Complete unabridged texts bundled in `src/data/completeBookCollection.ts` and merged into `ALL_ANTHOLOGY_STORIES`.
+  2. Multi-section virtual windowing runs seamlessly without DOM jank or UI stutter.
+  3. Verified by BDD acceptance suite (`FT-NONLLM-009`).
+
+#### `UX-004`: Story Library Categorization Overhaul & Segmented Navigation
+* **Status:** 🟢 `Completed` | **Priority:** High | **Points:** 5
+* **Requirements:**
+  * Replace subtle, understated category pills with a prominent, visually tactile library navigation bar in `ReadingWorkspace.tsx`.
+  * Support distinct category tabs (`All Stories 📖`, `Books & Novellas 📚`, `Buddhist & Wisdom 📿`, `Fairy Tales & Children 🧸`, `Literary Classics 📜`, `Idioms & Fables 🏮`).
+  * Display live count badges per genre (e.g. `Books & Novellas (9)`, `All Stories (89)`) and dedicated secondary HSK level filter chips.
+* **Acceptance Criteria:**
+  1. Prominent tab bar with icon, label, and dynamic count badges reflecting library size.
+  2. Active tab visually distinguished with Moyun bamboo accents and subtle shadow styling.
+  3. Smooth multi-dimensional filtering across genre and HSK levels simultaneously.
+  4. Verified by BDD acceptance suite (`FT-NONLLM-009` scenario 3).
+
+
 

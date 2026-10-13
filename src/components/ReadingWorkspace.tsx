@@ -61,9 +61,98 @@ export const ReadingWorkspace: React.FC<ReadingWorkspaceProps> = ({
   const [quickPastedTitle, setQuickPastedTitle] = useState('');
   const [quickPastedText, setQuickPastedText] = useState('');
 
-  const filteredStories = librarySearchQuery.trim()
-    ? SemanticSearchEngine.searchStories(librarySearchQuery, savedStories).map(r => r.story)
-    : savedStories;
+  const [selectedHskFilter, setSelectedHskFilter] = useState<string>('all');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+
+  const isStoryInGenre = (story: SavedStory, genreId: string) => {
+    if (genreId === 'all') return true;
+    if (genreId === 'books') {
+      return (
+        story.title.includes('【完整名著】') ||
+        story.title.includes('【古典全本】') ||
+        story.title.includes('【晚清小说】') ||
+        story.title.includes('【完整散文】') ||
+        story.title.includes('【先秦经典】') ||
+        story.text.length >= 1500
+      );
+    }
+    if (genreId === 'buddhist') {
+      return (
+        story.title.includes('百喻经') ||
+        story.title.includes('心经') ||
+        story.title.includes('坛经') ||
+        story.title.includes('金刚经') ||
+        story.title.includes('九色鹿') ||
+        story.title.includes('盲人摸象') ||
+        story.category === 'culture'
+      );
+    }
+    if (genreId === 'children') {
+      return (
+        story.category === 'fable' ||
+        story.title.includes('马良') ||
+        story.title.includes('稻草人') ||
+        story.title.includes('阿凡提') ||
+        story.title.includes('和尚') ||
+        story.title.includes('神笔')
+      );
+    }
+    if (genreId === 'classics') {
+      return (
+        story.category === 'literature' ||
+        story.title.includes('白蛇') ||
+        story.title.includes('梁山伯') ||
+        story.title.includes('西游记') ||
+        story.title.includes('三国') ||
+        story.title.includes('水浒') ||
+        story.title.includes('红楼梦') ||
+        story.title.includes('鲁迅') ||
+        story.title.includes('孙武') ||
+        story.title.includes('老子')
+      );
+    }
+    if (genreId === 'chengyu') {
+      return (
+        story.category === 'chengyu' ||
+        story.title.includes('守株待兔') ||
+        story.title.includes('滥竽充数') ||
+        story.title.includes('塞翁失马') ||
+        story.title.includes('矛盾') ||
+        story.title.includes('买椟还珠') ||
+        story.title.includes('叶公好龙') ||
+        story.title.includes('亡羊补牢') ||
+        story.title.includes('井底之蛙')
+      );
+    }
+    return false;
+  };
+
+  const GENRE_CATEGORIES = [
+    { id: 'all', label: 'All Stories', icon: '📖', desc: 'Browse complete library' },
+    { id: 'books', label: 'Books & Novellas', icon: '📚', desc: 'Unabridged multi-page texts' },
+    { id: 'buddhist', label: 'Buddhist & Wisdom', icon: '📿', desc: 'Sutras & moral parables' },
+    { id: 'children', label: 'Fairy Tales & Children', icon: '🧸', desc: 'Folklore & illustrated tales' },
+    { id: 'classics', label: 'Literary Classics', icon: '📜', desc: 'Ancient & modern masters' },
+    { id: 'chengyu', label: 'Idioms & Fables', icon: '🏮', desc: 'Proverbs & cultural stories' }
+  ];
+
+  const filteredStories = savedStories.filter(story => {
+    // 1. HSK Level filter
+    if (selectedHskFilter !== 'all' && story.hskLevel !== selectedHskFilter) {
+      return false;
+    }
+    // 2. Category / Genre filter
+    if (selectedCategoryFilter !== 'all' && !isStoryInGenre(story, selectedCategoryFilter)) {
+      return false;
+    }
+    // 3. Search query filter
+    if (librarySearchQuery.trim()) {
+      const matchTitle = story.title.toLowerCase().includes(librarySearchQuery.toLowerCase());
+      const matchText = story.text.toLowerCase().includes(librarySearchQuery.toLowerCase());
+      if (!matchTitle && !matchText) return false;
+    }
+    return true;
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -129,9 +218,24 @@ export const ReadingWorkspace: React.FC<ReadingWorkspaceProps> = ({
           </div>
 
           {!apiKey && (
-            <p style={{ margin: 0, fontSize: '12px', color: 'var(--accent-seal)' }}>
-              ⚠️ Please configure your Gemini API Key in Settings to generate AI stories.
-            </p>
+            <div style={{
+              margin: '2px 0 0 0',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              backgroundColor: 'rgba(56, 189, 248, 0.06)',
+              border: '1px solid rgba(56, 189, 248, 0.2)',
+              fontSize: '12px',
+              color: 'var(--text-secondary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '6px'
+            }}>
+              <span>
+                💡 <strong>Zero-API Mode:</strong> Enjoy our built-in <strong>Offline Story Anthology</strong> below or use <strong>"Paste Chinese Text"</strong> above without requiring an API key. (To synthesize brand-new AI stories on demand, configure a free Gemini key in Settings).
+              </span>
+            </div>
           )}
         </form>
       </div>
@@ -187,6 +291,113 @@ export const ReadingWorkspace: React.FC<ReadingWorkspaceProps> = ({
           </div>
         </div>
 
+        {/* Primary Genre Categorization Tabs */}
+        <div 
+          className="story-library-category-bar"
+          style={{ 
+            display: 'flex', 
+            gap: '8px', 
+            marginBottom: '16px', 
+            flexWrap: 'wrap'
+          }}
+        >
+          {GENRE_CATEGORIES.map(genre => {
+            const count = savedStories.filter(s => isStoryInGenre(s, genre.id)).length;
+            const isSelected = selectedCategoryFilter === genre.id;
+            return (
+              <button
+                key={genre.id}
+                type="button"
+                onClick={() => setSelectedCategoryFilter(genre.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '7px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  border: isSelected ? '1px solid var(--accent-bamboo)' : '1px solid var(--border-subtle)',
+                  backgroundColor: isSelected ? 'var(--accent-bamboo-subtle)' : 'var(--bg-surface)',
+                  color: isSelected ? 'var(--accent-bamboo)' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: isSelected ? 600 : 400,
+                  transition: 'all 0.18s ease',
+                  whiteSpace: 'nowrap',
+                  boxShadow: isSelected ? '0 1px 3px rgba(0, 0, 0, 0.05)' : 'none'
+                }}
+              >
+                <span style={{ fontSize: '15px' }}>{genre.icon}</span>
+                <span>{genre.label}</span>
+                <span 
+                  style={{ 
+                    fontSize: '11px', 
+                    padding: '2px 8px', 
+                    borderRadius: 'var(--radius-pill)',
+                    backgroundColor: isSelected ? 'var(--accent-bamboo)' : 'var(--bg-secondary)',
+                    color: isSelected ? '#ffffff' : 'var(--text-muted)',
+                    fontWeight: 500,
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0
+                  }}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Secondary HSK Level Quick Filter Row */}
+        <div 
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            marginBottom: '20px', 
+            flexWrap: 'wrap',
+            padding: '10px 14px',
+            backgroundColor: 'var(--bg-surface)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-subtle)'
+          }}
+        >
+          <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', marginRight: '4px', whiteSpace: 'nowrap' }}>
+            Filter by HSK Level:
+          </span>
+          {['all', '1', '2', '3', '4', '5', '6'].map(lvl => {
+            const isSelected = selectedHskFilter === lvl;
+            const lvlCount = savedStories.filter(s => {
+              const matchesGenre = selectedCategoryFilter === 'all' || isStoryInGenre(s, selectedCategoryFilter);
+              const matchesLvl = lvl === 'all' || s.hskLevel === lvl;
+              return matchesGenre && matchesLvl;
+            }).length;
+
+            return (
+              <button
+                key={lvl}
+                type="button"
+                onClick={() => setSelectedHskFilter(lvl)}
+                className={`btn ${isSelected ? 'btn-bamboo' : 'btn-secondary'}`}
+                style={{ 
+                  padding: '4px 10px', 
+                  fontSize: '11px', 
+                  borderRadius: 'var(--radius-pill)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <span>{lvl === 'all' ? 'All HSK' : `HSK ${lvl}`}</span>
+                <span style={{ opacity: 0.8, fontSize: '10.5px', whiteSpace: 'nowrap', flexShrink: 0 }}>({lvlCount})</span>
+              </button>
+            );
+          })}
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+            Showing {filteredStories.length} of {savedStories.length} stories
+          </span>
+        </div>
+
         {filteredStories.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '36px', color: 'var(--text-muted)', fontSize: '13px' }}>
             No saved stories found. Click "Save" in the Reading Theater to store stories in local offline storage.
@@ -218,21 +429,39 @@ export const ReadingWorkspace: React.FC<ReadingWorkspaceProps> = ({
                 }}
               >
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <span style={{ fontWeight: 500, fontSize: '14px', color: 'var(--text-primary)', fontFamily: 'var(--font-serif-zh)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '8px' }}>
+                    <span style={{ fontWeight: 500, fontSize: '14px', color: 'var(--text-primary)', fontFamily: 'var(--font-serif-zh)', flex: 1 }}>
                       {story.title}
                     </span>
-                    <span style={{
-                      fontSize: '11px',
-                      fontWeight: 500,
-                      backgroundColor: 'var(--bg-base)',
-                      padding: '2px 6px',
-                      borderRadius: 'var(--radius-sm)',
-                      color: 'var(--text-secondary)',
-                      border: '1px solid var(--border-subtle)'
-                    }}>
-                      HSK {story.hskLevel}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                      {story.categoryLabel && (
+                        <span style={{
+                          fontSize: '11px',
+                          padding: '2px 7px',
+                          borderRadius: 'var(--radius-sm)',
+                          backgroundColor: 'var(--accent-bamboo-subtle)',
+                          color: 'var(--accent-bamboo)',
+                          border: '1px solid rgba(46, 125, 87, 0.2)',
+                          whiteSpace: 'nowrap',
+                          display: 'inline-block'
+                        }}>
+                          {story.categoryLabel.split(' ')[0]}
+                        </span>
+                      )}
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: 500,
+                        backgroundColor: 'var(--bg-base)',
+                        padding: '2px 7px',
+                        borderRadius: 'var(--radius-sm)',
+                        color: 'var(--text-secondary)',
+                        border: '1px solid var(--border-subtle)',
+                        whiteSpace: 'nowrap',
+                        display: 'inline-block'
+                      }}>
+                        HSK {story.hskLevel}
+                      </span>
+                    </div>
                   </div>
                   <p style={{
                     margin: 0,

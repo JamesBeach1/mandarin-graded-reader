@@ -30,6 +30,7 @@ interface CharacterTooltipProps {
   onStrokeOrder: (char: string, pinyin: string, definition: string) => void;
   onExploreEtymology: (char: string) => void;
   onPracticeConfusable: (char: string) => void;
+  onOpenInspector?: (char: string, pinyin: string, definition: string, item?: HanziItem, sentence?: string) => void;
 }
 
 function getToneSandhiHint(char: string, pinyin: string): string | null {
@@ -61,7 +62,8 @@ export const CharacterTooltip: React.FC<CharacterTooltipProps> = ({
   onOverride,
   onStrokeOrder,
   onExploreEtymology,
-  onPracticeConfusable
+  onPracticeConfusable,
+  onOpenInspector
 }) => {
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const [activeInsight, setActiveInsight] = useState<InsightTab>('none');
@@ -375,12 +377,22 @@ export const CharacterTooltip: React.FC<CharacterTooltipProps> = ({
             <Plus size={15} /> Save to Flashcards
           </button>
 
-          {/* Secondary Action Row: Write, Strokes, Edit */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginBottom: hasAnyInsights ? '10px' : '0' }}>
+          {/* Secondary Action Row: Write, Strokes, Edit, and Inspector */}
+          <div style={{ display: 'grid', gridTemplateColumns: onOpenInspector ? '1fr 1fr 1fr 1fr' : '1fr 1fr 1fr', gap: '5px', marginBottom: hasAnyInsights ? '10px' : '0' }}>
+            {onOpenInspector && (
+              <button
+                onClick={() => onOpenInspector(tooltip.character, tooltip.content?.pinyin || '', tooltip.content?.definition || '', tooltip.item, tooltip.contextSentence)}
+                className="btn btn-primary"
+                style={{ height: '30px', padding: '0 4px', fontSize: '11px', textTransform: 'none', letterSpacing: 'normal', justifyContent: 'center' }}
+                title="Open Ink Scroll Inspector (墨卷检视): unified 4-tab slide-over drawer"
+              >
+                <span>📜</span> 检视
+              </button>
+            )}
             <button
               onClick={() => onPractice(tooltip.item!)}
               className="btn btn-secondary"
-              style={{ height: '30px', padding: '0 6px', fontSize: '11px', textTransform: 'none', letterSpacing: 'normal', justifyContent: 'center' }}
+              style={{ height: '30px', padding: '0 4px', fontSize: '11px', textTransform: 'none', letterSpacing: 'normal', justifyContent: 'center' }}
               title="Practice writing this character on the rice-grid canvas"
             >
               <Edit3 size={12} /> Write
@@ -388,7 +400,7 @@ export const CharacterTooltip: React.FC<CharacterTooltipProps> = ({
             <button
               onClick={() => onStrokeOrder(tooltip.character, tooltip.content?.pinyin || '', tooltip.content?.definition || '')}
               className="btn btn-secondary"
-              style={{ height: '30px', padding: '0 6px', fontSize: '11px', textTransform: 'none', letterSpacing: 'normal', justifyContent: 'center' }}
+              style={{ height: '30px', padding: '0 4px', fontSize: '11px', textTransform: 'none', letterSpacing: 'normal', justifyContent: 'center' }}
               title="Inspect animated stroke order and calligraphy guidelines"
             >
               <BookOpen size={12} /> Strokes
@@ -396,7 +408,7 @@ export const CharacterTooltip: React.FC<CharacterTooltipProps> = ({
             <button
               onClick={() => onOverride(tooltip.character, tooltip.content?.pinyin || '', tooltip.content?.definition || '')}
               className="btn btn-secondary"
-              style={{ height: '30px', padding: '0 6px', fontSize: '11px', textTransform: 'none', letterSpacing: 'normal', justifyContent: 'center', color: 'var(--text-muted)' }}
+              style={{ height: '30px', padding: '0 4px', fontSize: '11px', textTransform: 'none', letterSpacing: 'normal', justifyContent: 'center', color: 'var(--text-muted)' }}
               title="Define custom Pinyin pronunciation or English definition"
             >
               Edit

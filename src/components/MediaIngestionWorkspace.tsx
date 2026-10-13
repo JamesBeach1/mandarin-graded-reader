@@ -14,6 +14,7 @@ import type { HanziItem } from '../types/HanziItem';
 import { addCard, batchAddCards } from '../services/srsStore';
 import { ToastStore } from '../services/toastStore';
 import { saveStory } from '../services/libraryStore';
+import { SynonymLadderEngine, type SubstitutionRecord } from '../utils/synonymLadder';
 
 const SAMPLE_CHINESE_TEXTS = [
   {
@@ -62,6 +63,19 @@ export const MediaIngestionWorkspace: React.FC<MediaIngestionWorkspaceProps> = (
   const [pastedText, setPastedText] = useState('');
   const [pastedTitle, setPastedTitle] = useState('');
   const [isSavingToLibrary, setIsSavingToLibrary] = useState(false);
+  const [adapterSubstitutions, setAdapterSubstitutions] = useState<SubstitutionRecord[]>([]);
+
+  const handleAdaptDifficulty = (targetHsk: number) => {
+    if (!pastedText.trim()) return;
+    const { scaledText, substitutions } = SynonymLadderEngine.scaleDifficulty(pastedText, targetHsk);
+    if (substitutions.length > 0) {
+      setPastedText(scaledText);
+      setAdapterSubstitutions(substitutions);
+      ToastStore.success(`Adapted text to HSK ${targetHsk}: swapped ${substitutions.length} vocabulary items!`);
+    } else {
+      ToastStore.info(`Text is already optimal for HSK ${targetHsk} ladder.`);
+    }
+  };
 
   const [parsedBook, setParsedBook] = useState<ParsedEpubBook | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<EpubChapter | null>(null);
@@ -505,9 +519,40 @@ export const MediaIngestionWorkspace: React.FC<MediaIngestionWorkspaceProps> = (
 
             {/* Textarea Area */}
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                Chinese Text Content
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', margin: 0 }}>
+                  Chinese Text Content
+                </label>
+                {/* 1-Click Offline Story Adapter Toolbar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    ⚡ 1-Click Adapter:
+                  </span>
+                  {[1, 2, 3, 4, 5, 6].map(lvl => (
+                    <button
+                      key={lvl}
+                      type="button"
+                      disabled={!pastedText.trim()}
+                      onClick={() => handleAdaptDifficulty(lvl)}
+                      className="btn btn-secondary"
+                      style={{
+                        padding: '2px 7px',
+                        fontSize: '11px',
+                        borderRadius: 'var(--radius-pill)',
+                        opacity: pastedText.trim() ? 1 : 0.5
+                      }}
+                      title={`Adapt pasted text vocabulary to HSK ${lvl} without LLM`}
+                    >
+                      HSK {lvl}
+                    </button>
+                  ))}
+                  {adapterSubstitutions.length > 0 && (
+                    <span style={{ fontSize: '10px', color: 'var(--accent-bamboo)', fontWeight: 600 }}>
+                      ({adapterSubstitutions.length} swapped)
+                    </span>
+                  )}
+                </div>
+              </div>
               <textarea
                 value={pastedText}
                 onChange={(e) => setPastedText(e.target.value)}
